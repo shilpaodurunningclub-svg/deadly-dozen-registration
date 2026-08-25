@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadly Dozen Registration — Report</title>
+<style>
+  :root {
+    --red: #a3271f;
+    --red-dark: #7f1e18;
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --border: #d9d9d9;
+    --card: #f6f5f4;
+    --page: #e9e7e5;
+    --green: #1a7a3a;
+    --amber: #a06a00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  .topbar { height: 6px; background: var(--red); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { color: var(--red); letter-spacing: 1px; font-size: 24px; margin: 0 0 20px; }
+
+  /* Login gate */
+  #loginGate {
+    max-width: 420px;
+    margin: 80px auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+  }
+  #loginGate h2 { margin-top: 0; font-size: 18px; color: var(--red); }
+  #loginGate input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  #loginGate button {
+    width: 100%;
+    padding: 12px;
+    background: var(--red);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 15px;
+  }
+  #loginGate button:hover { background: var(--red-dark); }
+  #loginError { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+  /* Summary cards */
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .summary-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .summary-card .num { font-size: 26px; font-weight: 800; }
+  .summary-card .label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .summary-card.total .num { color: var(--ink); }
+  .summary-card.success .num { color: var(--green); }
+  .summary-card.pending .num { color: var(--amber); }
+
+  .category-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .category-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--red);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .category-card .cat-name { font-weight: 700; color: var(--red); letter-spacing: 0.5px; font-size: 14px; }
+  .category-card .cat-stats { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .category-card .cat-stats b { color: var(--ink); font-size: 15px; }
+
+  /* Filter tabs */
+  .filter-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .filter-btn.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+  .search-row { margin-bottom: 16px; }
+  .search-row input {
+    width: 100%;
+    max-width: 360px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+  }
+
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    padding: 12px 14px;
+    background: #f0eeec;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    vertical-align: top;
+  }
+  tbody tr:hover { background: #fafafa; }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .badge.paid { background: #e3f4e8; color: var(--green); }
+  .badge.pending_payment { background: #fdf1d9; color: var(--amber); }
+
+  .cat-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f6e3e1;
+    color: var(--red);
+    letter-spacing: 0.5px;
+  }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+
+  .bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fdf1d9;
+    border: 1px solid #eccf8f;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .delete-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--red);
+    background: var(--red);
+    color: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .row-delete-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--red);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .row-delete-btn:hover { background: #fbe4e2; }
+  .refresh-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    float: right;
+  }
+  .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+<div class="wrap">
+
+  <div id="loginGate">
+    <h2>DEADLY DOZEN — Admin Access</h2>
+    <p style="font-size:13px; color:var(--muted);">Enter the admin key to view the registration report.</p>
+    <input type="password" id="adminKeyInput" placeholder="Admin key" onkeydown="if(event.key==='Enter') login()">
+    <button onclick="login()">View Report</button>
+    <div id="loginError"></div>
+  </div>
+
+  <div id="reportView" style="display:none;">
+    <div class="top-row">
+      <h1>Deadly Dozen Registration — Report</h1>
+      <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-card total"><div class="num" id="sumTotal">0</div><div class="label">Total entries</div></div>
+      <div class="summary-card success"><div class="num" id="sumPaid">0</div><div class="label">Payment successful</div></div>
+      <div class="summary-card pending"><div class="num" id="sumPending">0</div><div class="label">Filled, payment pending</div></div>
+      <div class="summary-card total"><div class="num" id="sumParticipants">0</div><div class="label">Total participants</div></div>
+    </div>
+
+    <div class="category-row">
+      <div class="category-card">
+        <div class="cat-name">SOLO</div>
+        <div class="cat-stats"><span>Entries</span><b id="soloEntries">0</b></div>
+        <div class="cat-stats"><span>Participants</span><b id="soloParticipants">0</b></div>
+      </div>
+      <div class="category-card">
+        <div class="cat-name">DOUBLE</div>
+        <div class="cat-stats"><span>Teams</span><b id="doubleEntries">0</b></div>
+        <div class="cat-stats"><span>Participants</span><b id="doubleParticipants">0</b></div>
+      </div>
+      <div class="category-card">
+        <div class="cat-name">RELAY</div>
+        <div class="cat-stats"><span>Teams</span><b id="relayEntries">0</b></div>
+        <div class="cat-stats"><span>Participants</span><b id="relayParticipants">0</b></div>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+      <button class="filter-btn" data-filter="paid" onclick="setFilter('paid')">Paid</button>
+      <button class="filter-btn" data-filter="pending_payment" onclick="setFilter('pending_payment')">Pending payment</button>
+      <button class="filter-btn" data-filter="cat:solo" onclick="setFilter('cat:solo')">Solo</button>
+      <button class="filter-btn" data-filter="cat:double" onclick="setFilter('cat:double')">Double</button>
+      <button class="filter-btn" data-filter="cat:relay" onclick="setFilter('cat:relay')">Relay</button>
+    </div>
+
+    <div class="search-row">
+      <input type="text" id="searchBox" placeholder="Search by name, email, phone, team name, or registration ID..." oninput="renderTable()">
+    </div>
+
+    <div class="bulk-bar" id="bulkBar" style="display:none;">
+      <span id="selectedCount">0 selected</span>
+      <button class="delete-btn" onclick="bulkDelete()">Delete selected</button>
+    </div>
+
+    <div id="tableWrap"></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = ''; // served from the same backend
+  let adminKey = '';
+  let allRecords = [];
+  let currentFilter = 'all';
+
+  function login() {
+    adminKey = document.getElementById('adminKeyInput').value.trim();
+    if (!adminKey) return;
+    loadData();
+  }
+
+  function statusLabel(status) {
+    if (status === 'paid') return 'Paid';
+    if (status === 'pending_payment') return 'Pending payment';
+    return status || 'Unknown';
+  }
+
+  function leadMemberName(rec) {
+    const m = (rec.members || [])[0];
+    if (!m) return '—';
+    const name = `${m.firstName || ''} ${m.lastName || ''}`.trim();
+    const extra = rec.members.length > 1 ? ` + ${rec.members.length - 1} more` : '';
+    return (name || '—') + extra;
+  }
+
+  function leadMemberContact(rec) {
+    const m = (rec.members || [])[0];
+    if (!m) return '—';
+    return [m.email, m.contact].filter(Boolean).join(' · ') || '—';
+  }
+
+  async function loadData() {
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/api/registrations`, { headers: { 'x-admin-key': adminKey } });
+      if (res.status === 403) {
+        errEl.textContent = 'Incorrect admin key.';
+        return;
+      }
+      if (!res.ok) {
+        errEl.textContent = 'Could not load data (status ' + res.status + ').';
+        return;
+      }
+      allRecords = await res.json();
+      document.getElementById('loginGate').style.display = 'none';
+      document.getElementById('reportView').style.display = '';
+      renderSummary();
+      renderTable();
+    } catch (e) {
+      errEl.textContent = 'Could not reach the server.';
+    }
+  }
+
+  function renderSummary() {
+    const total = allRecords.length;
+    const paid = allRecords.filter(r => r.status === 'paid').length;
+    const pending = allRecords.filter(r => r.status === 'pending_payment').length;
+    const participants = allRecords.reduce((sum, r) => sum + (r.totalMembers || (r.members || []).length || 0), 0);
+
+    document.getElementById('sumTotal').textContent = total;
+    document.getElementById('sumPaid').textContent = paid;
+    document.getElementById('sumPending').textContent = pending;
+    document.getElementById('sumParticipants').textContent = participants;
+
+    ['solo', 'double', 'relay'].forEach(cat => {
+      const rows = allRecords.filter(r => r.category === cat);
+      const p = rows.reduce((sum, r) => sum + (r.totalMembers || (r.members || []).length || 0), 0);
+      document.getElementById(cat + 'Entries').textContent = rows.length;
+      document.getElementById(cat + 'Participants').textContent = p;
+    });
+  }
+
+  function setFilter(f) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+    renderTable();
+  }
+
+  let selectedIds = new Set();
+
+  function toggleSelect(id, checked) {
+    if (checked) selectedIds.add(id); else selectedIds.delete(id);
+    updateBulkBar();
+  }
+
+  function toggleSelectAll(checked) {
+    const visibleRows = getVisibleRows();
+    visibleRows.forEach(r => {
+      if (checked) selectedIds.add(r.id); else selectedIds.delete(r.id);
+    });
+    renderTable();
+  }
+
+  function updateBulkBar() {
+    const bar = document.getElementById('bulkBar');
+    const count = selectedIds.size;
+    document.getElementById('selectedCount').textContent = count + ' selected';
+    bar.style.display = count > 0 ? 'flex' : 'none';
+  }
+
+  function getVisibleRows() {
+    const search = (document.getElementById('searchBox').value || '').toLowerCase();
+    let rows = allRecords;
+    if (currentFilter.startsWith('cat:')) {
+      const cat = currentFilter.split(':')[1];
+      rows = rows.filter(r => r.category === cat);
+    } else if (currentFilter !== 'all') {
+      rows = rows.filter(r => r.status === currentFilter);
+    }
+    if (search) {
+      rows = rows.filter(r => {
+        const hay = [leadMemberName(r), leadMemberContact(r), r.teamName, r.id].join(' ').toLowerCase();
+        return hay.includes(search);
+      });
+    }
+    return rows.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  async function deleteOne(id) {
+    if (!confirm('Delete this registration permanently? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/registrations/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': adminKey }
+      });
+      if (!res.ok) {
+        alert('Could not delete this record (status ' + res.status + ').');
+        return;
+      }
+      selectedIds.delete(id);
+      await loadData();
+    } catch (e) {
+      alert('Could not reach the server to delete this record.');
+    }
+  }
+
+  async function bulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} registration${ids.length === 1 ? '' : 's'} permanently? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/registrations/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ ids })
+      });
+      if (!res.ok) {
+        alert('Could not delete records (status ' + res.status + ').');
+        return;
+      }
+      selectedIds.clear();
+      await loadData();
+    } catch (e) {
+      alert('Could not reach the server to delete these records.');
+    }
+  }
+
+  function renderTable() {
+    const rows = getVisibleRows();
+
+    const wrap = document.getElementById('tableWrap');
+    updateBulkBar();
+
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="empty-state">No registrations match this filter.</div>';
+      return;
+    }
+
+    const allVisibleSelected = rows.every(r => selectedIds.has(r.id));
+
+    let html = `<table><thead><tr>
+      <th><input type="checkbox" ${allVisibleSelected ? 'checked' : ''} onchange="toggleSelectAll(this.checked)"></th>
+      <th>Status</th><th>Category</th><th>Team</th><th>Lead entrant</th><th>Contact</th><th>Members</th><th>Amount</th><th>Registered</th><th>Reg. ID</th><th></th>
+    </tr></thead><tbody>`;
+
+    rows.forEach(r => {
+      const amount = typeof r.totalAmount === 'number' ? '₹' + r.totalAmount.toLocaleString('en-IN') : '—';
+      const when = r.createdAt ? new Date(r.createdAt).toLocaleString('en-IN') : '—';
+      const checked = selectedIds.has(r.id) ? 'checked' : '';
+      html += `<tr>
+        <td><input type="checkbox" ${checked} onchange="toggleSelect('${r.id}', this.checked)"></td>
+        <td><span class="badge ${r.status}">${statusLabel(r.status)}</span></td>
+        <td><span class="cat-badge">${(r.categoryLabel || r.category || '—').toUpperCase()}</span></td>
+        <td>${r.teamName || '—'}</td>
+        <td>${leadMemberName(r)}</td>
+        <td>${leadMemberContact(r)}</td>
+        <td>${r.totalMembers || (r.members || []).length || '—'}</td>
+        <td>${amount}</td>
+        <td>${when}</td>
+        <td style="font-family:monospace; font-size:12px;">${r.id}</td>
+        <td><button class="row-delete-btn" onclick="deleteOne('${r.id}')">Delete</button></td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+</script>
+
+</body>
+</html>
