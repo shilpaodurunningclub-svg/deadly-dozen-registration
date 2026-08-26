@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Razorpay = require('razorpay');
+const nodemailer = require('nodemailer');
+require('dns').setDefaultResultOrder('ipv4first'); // Render has no outbound IPv6 route; avoid ENETUNREACH on SMTP
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -23,6 +25,94 @@ if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
   razorpay = new Razorpay({ key_id: RAZORPAY_KEY_ID, key_secret: RAZORPAY_KEY_SECRET });
 } else {
   console.warn('⚠️  RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET not set — payment endpoints will return an error until configured.');
+}
+
+// ---------- Email setup ----------
+// Gmail: use an App Password (not your normal Gmail password) — https://myaccount.google.com/apppasswords
+const EMAIL_USER = process.env.EMAIL_USER || '';
+const EMAIL_PASS = process.env.EMAIL_PASS || '';
+const EMAIL_FROM = process.env.EMAIL_FROM || EMAIL_USER;
+
+let mailTransporter = null;
+if (EMAIL_USER && EMAIL_PASS) {
+  mailTransporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // STARTTLS on 587 instead of implicit TLS on 465
+    requireTLS: true,
+    family: 4, // force IPv4 — Render has no outbound IPv6 route
+    lookup: (hostname, options, callback) => {
+      require('dns').lookup(hostname, { family: 4 }, callback);
+    },
+    connectionTimeout: 10000,
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+  });
+} else {
+  console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set — confirmation emails will be skipped (logged only) until configured.');
+}
+
+function buildMemberSummaryText(member, index, total) {
+  const fullName = `${(member.firstName || '')} ${(member.lastName || '')}`.trim() || 'Not specified';
+  const label = total > 1 ? `Member ${index + 1}` : 'Entrant';
+  const lines = [
+    `  ${label}: ${fullName}`,
+    `  Email: ${member.email || 'Not specified'}`,
+    `  Contact: ${member.contact || 'Not specified'}`,
+    `  City / State: ${[member.city, member.state].filter(Boolean).join(', ') || 'Not specified'}`,
+    `  Gym/Club: ${member.gymClub || 'Not specified'}`
+  ];
+  return lines.join('\n');
+}
+
+async function sendConfirmationEmail(record) {
+  const members = record.members || [];
+  const lead = members[0];
+  const toEmail = lead && lead.email;
+
+  if (!toEmail) {
+    console.warn(`No email address found on registration ${record.id}; skipping confirmation email.`);
+    return;
+  }
+
+  const memberBlocks = members.map((m, i) => buildMemberSummaryText(m, i, members.length)).join('\n\n');
+  const amountPaid = typeof record.totalAmount === 'number' ? `₹${record.totalAmount.toLocaleString('en-IN')}` : 'N/A';
+  const primaryName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Racer';
+  const teamLine = record.teamName ? `Team Name: ${record.teamName}\n` : '';
+
+  const subject = `You're confirmed for Deadly Dozen! Registration ${record.id}`;
+  const text = `Dear ${primaryName},
+
+Thank you for registering for Deadly Dozen — can you beat the race?
+
+Your registration is confirmed. Here are your details:
+
+Category: ${record.categoryLabel || record.category}
+${teamLine}${memberBlocks}
+
+Amount Paid: ${amountPaid}
+Registration ID: ${record.id}
+
+See you at the start line!
+
+Warm regards,
+Team Deadly Dozen`;
+
+  if (!mailTransporter) {
+    console.warn(`EMAIL not configured — would have sent confirmation to ${toEmail} for ${record.id}:\n${text}`);
+    return;
+  }
+
+  try {
+    await mailTransporter.sendMail({
+      from: `"Deadly Dozen Registration" <${EMAIL_FROM}>`,
+      to: toEmail,
+      subject,
+      text
+    });
+    console.log(`Confirmation email sent to ${toEmail} for registration ${record.id}`);
+  } catch (err) {
+    console.error(`Failed to send confirmation email for ${record.id}:`, err);
+  }
 }
 
 // ---------- Admin protection ----------
@@ -172,6 +262,10 @@ app.post('/api/verify-payment', async (req, res) => {
 
   if (!isValid) {
     return res.status(400).json({ ok: false, error: 'Signature verification failed.' });
+  }
+
+  if (record) {
+    await sendConfirmationEmail(record);
   }
 
   res.json({ ok: true, status: 'paid' });
