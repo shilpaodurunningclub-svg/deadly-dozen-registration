@@ -74,28 +74,54 @@ async function sendConfirmationEmail(record) {
     return;
   }
 
-  const memberBlocks = members.map((m, i) => buildMemberSummaryText(m, i, members.length)).join('\n\n');
-  const amountPaid = typeof record.totalAmount === 'number' ? `₹${record.totalAmount.toLocaleString('en-IN')}` : 'N/A';
+  const amountPaid = typeof record.totalAmount === 'number' ? record.totalAmount.toLocaleString('en-IN') : 'N/A';
   const primaryName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Racer';
-  const teamLine = record.teamName ? `Team Name: ${record.teamName}\n` : '';
+  const eventName = 'Deadly Dozen';
+  const eventDate = record.eventDate || 'To be confirmed';
+  const eventVenue = process.env.EVENT_VENUE || 'To be announced';
+  const category = record.categoryLabel || record.category;
+  const txnId = record.razorpayPaymentId || 'N/A';
 
-  const subject = `You're confirmed for Deadly Dozen! Registration ${record.id}`;
-  const text = `Dear ${primaryName},
+  const subject = `Confirmation: Your Registration for ${eventName} - ✅ ${category}`;
 
-Thank you for registering for Deadly Dozen — can you beat the race?
+  const text = `Hi ${primaryName},
 
-Your registration is confirmed. Here are your details:
+Thanks a lot for choosing ${eventName} for ${eventName}!
 
-Category: ${record.categoryLabel || record.category}
-${teamLine}${memberBlocks}
+We're excited to see you at the start line 🎉 ${category}
 
-Amount Paid: ${amountPaid}
-Registration ID: ${record.id}
+Registration Details
+Event: ${eventName}
+Date: ${eventDate}
+Venue: ${eventVenue}
+Category: ${category}
+Amount Paid: ₹${amountPaid}
+Transaction ID: ${txnId}
 
-See you at the start line!
+Your spot is confirmed. You'll receive details about kit collection, race timings, and reporting time closer to the event.
 
-Warm regards,
-Team Deadly Dozen`;
+In the meantime, keep training and get ready to run!
+
+See you at the start line,
+Deadly Dozen India`;
+
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#1c1c1c; max-width:560px; margin:0 auto;">
+    <p>Hi ${primaryName},</p>
+    <p>Thanks a lot for choosing <strong>${eventName}</strong> for ${eventName}!</p>
+    <p>We're excited to see you at the start line 🎉 ${category}</p>
+    <h3 style="color:#a3271f; margin-bottom:6px;">Registration Details</h3>
+    <table style="border-collapse:collapse; width:100%;">
+      <tr><td style="padding:4px 0;"><strong>Event:</strong></td><td>${eventName}</td></tr>
+      <tr><td style="padding:4px 0;"><strong>Date:</strong></td><td>${eventDate}</td></tr>
+      <tr><td style="padding:4px 0;"><strong>Venue:</strong></td><td>${eventVenue}</td></tr>
+      <tr><td style="padding:4px 0;"><strong>Category:</strong></td><td>${category}</td></tr>
+      <tr><td style="padding:4px 0;"><strong>Amount Paid:</strong></td><td>₹${amountPaid}</td></tr>
+      <tr><td style="padding:4px 0;"><strong>Transaction ID:</strong></td><td>${txnId}</td></tr>
+    </table>
+    <p>Your spot is confirmed. You'll receive details about kit collection, race timings, and reporting time closer to the event.</p>
+    <p>In the meantime, keep training and get ready to run!</p>
+    <p>See you at the start line,<br><strong>Deadly Dozen India</strong></p>
+  </div>`;
 
   if (!mailTransporter) {
     console.warn(`EMAIL not configured — would have sent confirmation to ${toEmail} for ${record.id}:\n${text}`);
@@ -104,10 +130,11 @@ Team Deadly Dozen`;
 
   try {
     await mailTransporter.sendMail({
-      from: `"Deadly Dozen Registration" <${EMAIL_FROM}>`,
+      from: `"Deadly Dozen India" <${EMAIL_FROM}>`,
       to: toEmail,
       subject,
-      text
+      text,
+      html
     });
     console.log(`Confirmation email sent to ${toEmail} for registration ${record.id}`);
   } catch (err) {
@@ -269,6 +296,34 @@ app.post('/api/verify-payment', async (req, res) => {
   }
 
   res.json({ ok: true, status: 'paid' });
+});
+
+// ---------- Send a test confirmation email (admin only) ----------
+// Lets you verify email delivery/formatting without needing a completed payment.
+// Body: { "toEmail": "you@example.com" } — everything else is filled with sample data.
+app.post('/api/test-confirmation-email', requireAdmin, async (req, res) => {
+  const { toEmail } = req.body || {};
+  if (!toEmail) {
+    return res.status(400).json({ error: 'toEmail is required.' });
+  }
+
+  const fakeRecord = {
+    id: 'DD-TEST-' + Date.now(),
+    category: 'solo',
+    categoryLabel: 'Solo (TEST)',
+    teamName: null,
+    totalAmount: 1,
+    eventDate: '28/11/2026, 8:00 AM (IST)',
+    razorpayPaymentId: 'pay_TESTSAMPLE123',
+    members: [{ firstName: 'Test', lastName: 'Runner', email: toEmail }]
+  };
+
+  try {
+    await sendConfirmationEmail(fakeRecord);
+    res.json({ ok: true, message: `Test email sent to ${toEmail} (check server logs if it doesn't arrive).` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to send test email: ' + err.message });
+  }
 });
 
 // ---------- List all registrations (admin only) ----------
