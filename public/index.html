@@ -656,6 +656,7 @@
     .ticket::before, .ticket::after { left: 50%; }
   }
 </style>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body>
  
@@ -1122,7 +1123,7 @@
     </div>
   </div>
  
-  <p class="pay-note">Razorpay is used here for demonstration only — this is a dummy checkout screen and no real payment is processed. Convenience fee percentages are illustrative.</p>
+  <p class="pay-note">Payments are processed securely via Razorpay. Convenience fee percentages are illustrative and may be adjusted.</p>
 </div>
  
 <script>
@@ -1185,16 +1186,72 @@
     }
   }
 
-  async function notifyBackendPaymentComplete(method) {
-    if (!currentRegistrationId) return;
+  async function startRazorpayCheckout(grandTotal, leadMember) {
+    if (!currentRegistrationId) {
+      alert('Registration was not saved to the server — please go back and try again.');
+      return;
+    }
     try {
-      await fetch(`${API_BASE}/api/payment-complete`, {
+      const orderRes = await fetch(`${API_BASE}/api/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registrationId: currentRegistrationId, paymentMethod: method })
+        body: JSON.stringify({ registrationId: currentRegistrationId, amountInRupees: grandTotal })
       });
+      const orderData = await orderRes.json();
+      if (!orderRes.ok || !orderData.ok) {
+        alert('Could not start payment: ' + (orderData.error || 'unknown error'));
+        return;
+      }
+
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: 'Deadly Dozen',
+        description: (CATEGORY_INFO[selectedCategory] || {}).label + ' entry',
+        order_id: orderData.order.id,
+        prefill: {
+          name: [leadMember.firstName, leadMember.lastName].filter(Boolean).join(' '),
+          email: leadMember.email || '',
+          contact: leadMember.contact || ''
+        },
+        theme: { color: '#a3271f' },
+        handler: async function (response) {
+          try {
+            const verifyRes = await fetch(`${API_BASE}/api/verify-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                registrationId: currentRegistrationId,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok && verifyData.ok) {
+              alert('Payment successful! Your registration is confirmed.');
+            } else {
+              alert('Payment received but verification failed. Please contact support with registration ID: ' + currentRegistrationId);
+            }
+          } catch (e) {
+            alert('Payment received but we could not confirm it with the server. Please contact support with registration ID: ' + currentRegistrationId);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            console.log('Checkout closed without completing payment.');
+          }
+        }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        alert('Payment failed: ' + (response.error && response.error.description ? response.error.description : 'please try again.'));
+      });
+      rzp.open();
     } catch (e) {
-      console.warn('Could not notify server of payment completion:', e);
+      alert('Could not reach the payment server. Please try again.');
     }
   }
 
@@ -1340,6 +1397,7 @@
   let lastBase = 0;
   let lastGst = 0;
   let lastCategoryLabel = '';
+  let lastGrandTotal = 0;
  
   function setPayMethod(method) {
     currentPayMethod = method;
@@ -1354,6 +1412,7 @@
     const feePct = RAZORPAY_FEE_PCT[currentPayMethod];
     const fee = Math.round(subtotal * feePct / 100);
     const grandTotal = subtotal + fee;
+    lastGrandTotal = grandTotal;
  
     document.getElementById('payKmLabel').textContent = lastCategoryLabel;
     document.getElementById('payBase').textContent = formatINR(lastBase);
@@ -1371,8 +1430,8 @@
   }
  
   function payNow() {
-    notifyBackendPaymentComplete(currentPayMethod);
-    alert('Demo checkout only — no real payment is processed.');
+    const leadMember = collectedMembers[0] || {};
+    startRazorpayCheckout(lastGrandTotal, leadMember);
   }
  
   function handleSubmit(e) {
