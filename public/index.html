@@ -1188,7 +1188,8 @@
       members: collectedMembers,
       baseAmount: price,
       gstAmount: TEST_MODE ? 0 : Math.round(price * GST_RATE / 100),
-      totalAmount: price + (TEST_MODE ? 0 : Math.round(price * GST_RATE / 100))
+      totalAmount: price + (TEST_MODE ? 0 : Math.round(price * GST_RATE / 100)),
+      eventDate: `${info.date}, ${info.time}`
     };
     try {
       const res = await fetch(`${API_BASE}/api/register`, {
