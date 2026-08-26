@@ -661,6 +661,7 @@
 <body>
  
 <div class="topbar"></div>
+<div id="testModeBanner" style="display:none; background:#a3271f; color:#fff; text-align:center; font-weight:700; letter-spacing:0.5px; padding:8px; font-size:13px;">TEST MODE — all payments are ₹1, no real amounts are charged</div>
 
 <!-- Category Selection Page -->
 <div class="wrap" id="categoryPage">
@@ -1140,6 +1141,23 @@
   let memberIndex = 1;
   let totalMembers = 1;
 
+  // ---- Test mode (for verifying the real Razorpay flow cheaply) ----
+  // Visit the site with ?ddtest=SKULL1 in the URL to charge ₹1 instead of the real price,
+  // regardless of category. Remove/rotate this token before wide public launch if you want
+  // to fully retire test mode; it never lowers the amount unless this exact param is present.
+  const TEST_MODE = new URLSearchParams(window.location.search).get('ddtest') === 'SKULL1';
+  const TEST_AMOUNT = 1;
+
+  function getEffectivePrice(cat) {
+    return TEST_MODE ? TEST_AMOUNT : CATEGORY_INFO[cat].price;
+  }
+  if (TEST_MODE) {
+    document.addEventListener('DOMContentLoaded', () => {
+      const banner = document.getElementById('testModeBanner');
+      if (banner) banner.style.display = '';
+    });
+  }
+
   // ---- Backend integration ----
   const API_BASE = ''; // served from the same backend
   let collectedMembers = [];
@@ -1161,15 +1179,16 @@
 
   async function submitRegistrationToBackend() {
     const info = CATEGORY_INFO[selectedCategory];
+    const price = getEffectivePrice(selectedCategory);
     const payload = {
       category: selectedCategory,
-      categoryLabel: info.label,
+      categoryLabel: info.label + (TEST_MODE ? ' (TEST)' : ''),
       teamName: teamName || null,
       totalMembers: totalMembers,
       members: collectedMembers,
-      baseAmount: info.price,
-      gstAmount: Math.round(info.price * GST_RATE / 100),
-      totalAmount: info.price + Math.round(info.price * GST_RATE / 100)
+      baseAmount: price,
+      gstAmount: TEST_MODE ? 0 : Math.round(price * GST_RATE / 100),
+      totalAmount: price + (TEST_MODE ? 0 : Math.round(price * GST_RATE / 100))
     };
     try {
       const res = await fetch(`${API_BASE}/api/register`, {
@@ -1348,11 +1367,11 @@
 
   function updatePricing() {
     if (!selectedCategory) return;
-    const base = CATEGORY_INFO[selectedCategory].price;
-    const gstAmt = Math.round(base * GST_RATE / 100);
+    const base = getEffectivePrice(selectedCategory);
+    const gstAmt = TEST_MODE ? 0 : Math.round(base * GST_RATE / 100);
     const total = base + gstAmt;
 
-    document.getElementById('baseAmount').textContent = formatINR(base);
+    document.getElementById('baseAmount').textContent = formatINR(base) + (TEST_MODE ? ' (TEST)' : '');
     document.getElementById('gstPct').textContent = GST_RATE;
     document.getElementById('gstAmount').textContent = formatINR(gstAmt);
     document.getElementById('totalAmount').textContent = formatINR(total);
@@ -1458,9 +1477,9 @@
     }
 
     const info = CATEGORY_INFO[selectedCategory];
-    lastBase = info.price;
-    lastGst = Math.round(lastBase * GST_RATE / 100);
-    lastCategoryLabel = info.label;
+    lastBase = getEffectivePrice(selectedCategory);
+    lastGst = TEST_MODE ? 0 : Math.round(lastBase * GST_RATE / 100);
+    lastCategoryLabel = info.label + (TEST_MODE ? ' (TEST — ₹1)' : '');
 
     submitRegistrationToBackend();
  
