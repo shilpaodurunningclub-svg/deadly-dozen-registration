@@ -679,10 +679,6 @@
           <span class="ticket-icon">👤</span>
           <span class="ticket-type">SOLO</span>
         </div>
-        <div class="ticket-meta">
-          <div><span class="label">Date</span><span class="value" id="soloDate"></span></div>
-          <div><span class="label">Time</span><span class="value" id="soloTime"></span></div>
-        </div>
         <div class="ticket-tagline">Race on your own. Can you beat the race!</div>
       </div>
       <div class="ticket-divider"></div>
@@ -699,10 +695,6 @@
           <span class="ticket-icon">👥</span>
           <span class="ticket-type">DOUBLE</span>
         </div>
-        <div class="ticket-meta">
-          <div><span class="label">Date</span><span class="value" id="doubleDate"></span></div>
-          <div><span class="label">Time</span><span class="value" id="doubleTime"></span></div>
-        </div>
         <div class="ticket-tagline">Team of two, same course. Can you beat the race!</div>
       </div>
       <div class="ticket-divider"></div>
@@ -718,10 +710,6 @@
         <div class="ticket-icon-row">
           <span class="ticket-icon">👥👥</span>
           <span class="ticket-type">RELAY</span>
-        </div>
-        <div class="ticket-meta">
-          <div><span class="label">Date</span><span class="value" id="relayDate"></span></div>
-          <div><span class="label">Time</span><span class="value" id="relayTime"></span></div>
         </div>
         <div class="ticket-tagline">Split the legs with your team. Can you beat the race!</div>
       </div>
@@ -1283,8 +1271,6 @@
   function renderCategoryCards() {
     Object.keys(CATEGORY_INFO).forEach(key => {
       const info = CATEGORY_INFO[key];
-      document.getElementById(key + 'Date').textContent = info.date;
-      document.getElementById(key + 'Time').textContent = info.time;
       document.getElementById(key + 'PriceDisplay').textContent = formatINR(info.price);
     });
   }
