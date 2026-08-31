@@ -770,24 +770,6 @@
  
   <form id="regForm" onsubmit="return handleSubmit(event)">
  
-    <!-- Entry for -->
-    <fieldset>
-      <legend>This entry is for</legend>
-      <div class="toggle-row">
-        <label class="toggle-option active" id="opt-myself">
-          <input type="radio" name="entryFor" value="myself" checked onclick="setEntry('myself')">
-          <span class="radio-dot"></span> MYSELF
-        </label>
-        <label class="toggle-option" id="opt-else">
-          <input type="radio" name="entryFor" value="someone_else" onclick="setEntry('someone_else')">
-          <span class="radio-dot"></span> SOMEONE ELSE
-        </label>
-      </div>
-      <div class="note">
-        If you select 'Someone Else', you are simply purchasing their entry. They will receive a separate email to finalise their registration. If you select 'Someone Else Underage', you must be the parent or legal guardian of the person being registered.
-      </div>
-    </fieldset>
- 
     <!-- Personal details -->
     <fieldset>
       <legend>Personal details</legend>
@@ -931,37 +913,6 @@
       </div>
       <div class="field">
         <input type="text" placeholder="Your Gym/Club Instagram handle">
-      </div>
-    </fieldset>
- 
-    <!-- Race history / times -->
-    <fieldset>
-      <legend>Race times</legend>
- 
-      <div class="field">
-        <label class="field-label">Previous race time</label>
-        <input type="text" id="prevTime" placeholder="e.g. 01:42:30 (hh:mm:ss)">
-      </div>
-      <div class="field">
-        <label class="field-label">Previous race time upload certificate</label>
-        <div class="upload-box">
-          <input type="file" id="prevCert" accept=".pdf,.jpg,.jpeg,.png" onchange="showFileName('prevCert','prevCertName')">
-          <div class="filename" id="prevCertName">No file selected</div>
-        </div>
-        <div class="hint">Upload proof of a previous qualifying race time, if applicable (PDF, JPG or PNG).</div>
-      </div>
- 
-      <div class="field">
-        <label class="field-label">Simulated Race Time</label>
-        <input type="text" id="presentTime" placeholder="e.g. 01:35:10 (hh:mm:ss)">
-      </div>
-      <div class="field">
-        <label class="field-label">Simulated race Time upload certificate</label>
-        <div class="upload-box">
-          <input type="file" id="presentCert" accept=".pdf,.jpg,.jpeg,.png" onchange="showFileName('presentCert','presentCertName')">
-          <div class="filename" id="presentCertName">No file selected</div>
-        </div>
-        <div class="hint">Upload proof of your simulated race time, if applicable (PDF, JPG or PNG).</div>
       </div>
     </fieldset>
  
@@ -1365,8 +1316,10 @@
   }
  
   function setEntry(value) {
-    document.getElementById('opt-myself').classList.toggle('active', value === 'myself');
-    document.getElementById('opt-else').classList.toggle('active', value === 'someone_else');
+    const myself = document.getElementById('opt-myself');
+    const otherEl = document.getElementById('opt-else');
+    if (myself) myself.classList.toggle('active', value === 'myself');
+    if (otherEl) otherEl.classList.toggle('active', value === 'someone_else');
   }
 
   function toggleMedicalDetails(show) {
@@ -1382,16 +1335,14 @@
   function showFileName(inputId, labelId) {
     const input = document.getElementById(inputId);
     const label = document.getElementById(labelId);
+    if (!input || !label) return;
     label.textContent = input.files.length ? input.files[0].name : 'No file selected';
   }
  
   function cancelForm() {
     if (confirm('Discard this registration?')) {
       document.getElementById('regForm').reset();
-      setEntry('myself');
       toggleMedicalDetails(false);
-      showFileName('prevCert','prevCertName');
-      showFileName('presentCert','presentCertName');
       collectedMembers = [];
       currentRegistrationId = null;
       backToCategory();
@@ -1454,10 +1405,7 @@
       // Save this member's entry (demo only) and move on to the next teammate
       memberIndex++;
       form.reset();
-      setEntry('myself');
       toggleMedicalDetails(false);
-      showFileName('prevCert', 'prevCertName');
-      showFileName('presentCert', 'presentCertName');
       updateTeamProgressUI();
       window.scrollTo(0, 0);
       return false;
