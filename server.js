@@ -1,20 +1,128 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Razorpay = require('razorpay');
 const nodemailer = require('nodemailer');
+const { Pool } = require('pg');
 require('dns').setDefaultResultOrder('ipv4first'); // Render has no outbound IPv6 route; avoid ENETUNREACH on SMTP
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const DATA_FILE = path.join(__dirname, 'data', 'registrations.json');
-const COUPONS_FILE = path.join(__dirname, 'data', 'coupons.json');
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ---------- Database (Render Postgres) ----------
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL is not set. Registrations and coupons cannot be stored without it.');
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+async function ensureSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS registrations (
+      id TEXT PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      status TEXT NOT NULL DEFAULT 'pending_payment',
+      category TEXT NOT NULL,
+      category_label TEXT,
+      gender_category TEXT,
+      team_name TEXT,
+      total_members INT,
+      members JSONB NOT NULL,
+      base_amount NUMERIC,
+      gst_amount NUMERIC,
+      total_amount NUMERIC NOT NULL,
+      coupon JSONB,
+      event_date TEXT,
+      razorpay_order_id TEXT,
+      razorpay_payment_id TEXT,
+      razorpay_signature TEXT,
+      payment_method TEXT,
+      paid_at TIMESTAMPTZ
+    );
+
+    CREATE TABLE IF NOT EXISTS coupons (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      percentage NUMERIC NOT NULL,
+      categories JSONB NOT NULL,
+      assigned_name TEXT,
+      assigned_phone TEXT,
+      assigned_email TEXT,
+      max_uses INT NOT NULL,
+      used_count INT NOT NULL DEFAULT 0,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  // One-time migration of the single test registration that existed in the old
+  // JSON-file storage, so nothing is lost in the switch to Postgres. Safe to
+  // run on every startup — ON CONFLICT means it only inserts once, ever.
+  await pool.query(`
+    INSERT INTO registrations (
+      id, created_at, status, category, category_label, gender_category,
+      team_name, total_members, members, base_amount, gst_amount, total_amount,
+      coupon, paid_at
+    ) VALUES (
+      'DD-1788228249048-ZHIZQ5', '2026-09-01T02:04:09.048Z', 'pending_payment',
+      'solo', 'Solo — Female', 'Female', NULL, 1,
+      '[{"firstName":"Shilpakala","lastName":"BA","email":"shilpapriyakala@gmail.com","contact":"09886623640","gender":"Female","dob":"1982-12-20","city":"BENGALURU","state":"Karnataka","gymClub":"independent"}]'::jsonb,
+      3999, 720, 4719, NULL, NULL
+    )
+    ON CONFLICT (id) DO NOTHING;
+  `);
+
+  console.log('✅ Database schema ready (registrations + coupons tables).');
+}
+
+// ---------- Row → camelCase JSON mapping (keeps the same shape the frontend already expects) ----------
+function mapRegistrationRow(row) {
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    status: row.status,
+    category: row.category,
+    categoryLabel: row.category_label,
+    genderCategory: row.gender_category,
+    teamName: row.team_name,
+    totalMembers: row.total_members,
+    members: row.members,
+    baseAmount: row.base_amount === null ? null : Number(row.base_amount),
+    gstAmount: row.gst_amount === null ? null : Number(row.gst_amount),
+    totalAmount: Number(row.total_amount),
+    coupon: row.coupon,
+    eventDate: row.event_date,
+    razorpayOrderId: row.razorpay_order_id,
+    razorpayPaymentId: row.razorpay_payment_id,
+    razorpaySignature: row.razorpay_signature,
+    paymentMethod: row.payment_method,
+    paidAt: row.paid_at
+  };
+}
+
+function mapCouponRow(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    percentage: Number(row.percentage),
+    categories: row.categories,
+    assignedName: row.assigned_name,
+    assignedPhone: row.assigned_phone,
+    assignedEmail: row.assigned_email,
+    maxUses: row.max_uses,
+    usedCount: row.used_count,
+    active: row.active,
+    createdAt: row.created_at
+  };
+}
 
 // ---------- Razorpay setup ----------
 // Get these from https://dashboard.razorpay.com/app/keys
@@ -50,19 +158,6 @@ if (EMAIL_USER && EMAIL_PASS) {
   });
 } else {
   console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set — confirmation emails will be skipped (logged only) until configured.');
-}
-
-function buildMemberSummaryText(member, index, total) {
-  const fullName = `${(member.firstName || '')} ${(member.lastName || '')}`.trim() || 'Not specified';
-  const label = total > 1 ? `Member ${index + 1}` : 'Entrant';
-  const lines = [
-    `  ${label}: ${fullName}`,
-    `  Email: ${member.email || 'Not specified'}`,
-    `  Contact: ${member.contact || 'Not specified'}`,
-    `  City / State: ${[member.city, member.state].filter(Boolean).join(', ') || 'Not specified'}`,
-    `  Gym/Club: ${member.gymClub || 'Not specified'}`
-  ];
-  return lines.join('\n');
 }
 
 async function sendConfirmationEmail(record) {
@@ -158,53 +253,19 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// ---------- Simple JSON-file storage ----------
-function readRegistrations() {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf8');
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.error('Failed to read registrations.json:', e);
-    return [];
-  }
-}
-
-function writeRegistrations(list) {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(list, null, 2), 'utf8');
-}
-
-// ---------- Coupon storage ----------
-function readCoupons() {
-  if (!fs.existsSync(COUPONS_FILE)) return [];
-  try {
-    const raw = fs.readFileSync(COUPONS_FILE, 'utf8');
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.error('Failed to read coupons.json:', e);
-    return [];
-  }
-}
-
-function writeCoupons(list) {
-  fs.mkdirSync(path.dirname(COUPONS_FILE), { recursive: true });
-  fs.writeFileSync(COUPONS_FILE, JSON.stringify(list, null, 2), 'utf8');
-}
-
 // Checks whether a coupon can currently be used for a given category.
-// Returns { ok: true, coupon } or { ok: false, error }.
-function checkCouponUsable(code, category) {
+// Returns { ok: true, coupon } or { ok: false, error }. `coupon` is snake_case DB row shape.
+async function checkCouponUsable(client, code, category) {
   if (!code) return { ok: false, error: 'No coupon code provided.' };
-  const coupons = readCoupons();
-  const coupon = coupons.find(c => c.code.toUpperCase() === String(code).toUpperCase());
+  const { rows } = await client.query('SELECT * FROM coupons WHERE UPPER(code) = UPPER($1)', [code]);
+  const coupon = rows[0];
 
   if (!coupon) return { ok: false, error: 'Coupon code not found.' };
   if (!coupon.active) return { ok: false, error: 'This coupon is no longer active.' };
   if (!coupon.categories.includes('all') && !coupon.categories.includes(category)) {
     return { ok: false, error: 'This coupon does not apply to the selected category.' };
   }
-  if (coupon.usedCount >= coupon.maxUses) {
+  if (coupon.used_count >= coupon.max_uses) {
     return { ok: false, error: 'This coupon has already been fully used.' };
   }
   return { ok: true, coupon };
@@ -217,67 +278,81 @@ app.get('/api/config', (req, res) => {
 
 // ---------- Validate a coupon code (public — called as the user types it in) ----------
 // Body: { code, category }. Does NOT consume a use — that only happens at /api/register.
-app.post('/api/validate-coupon', (req, res) => {
+app.post('/api/validate-coupon', async (req, res) => {
   const { code, category } = req.body || {};
-  const result = checkCouponUsable(code, category);
-  if (!result.ok) {
-    return res.status(400).json({ valid: false, error: result.error });
+  const client = await pool.connect();
+  try {
+    const result = await checkCouponUsable(client, code, category);
+    if (!result.ok) {
+      return res.status(400).json({ valid: false, error: result.error });
+    }
+    res.json({ valid: true, percentage: Number(result.coupon.percentage), code: result.coupon.code });
+  } catch (err) {
+    console.error('validate-coupon failed:', err);
+    res.status(500).json({ valid: false, error: 'Server error checking coupon.' });
+  } finally {
+    client.release();
   }
-  res.json({
-    valid: true,
-    percentage: result.coupon.percentage,
-    code: result.coupon.code
-  });
 });
 
 // ---------- Save a registration ----------
 // Called from the form once all team members (or the solo entrant) have been filled in,
 // right before the payment step.
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   const payload = req.body || {};
 
   if (!payload.category || typeof payload.totalAmount !== 'number' || !Array.isArray(payload.members) || !payload.members.length) {
     return res.status(400).json({ error: 'Missing required fields (category, totalAmount, members[]).' });
   }
 
-  let appliedCoupon = null;
-  if (payload.couponCode) {
-    const result = checkCouponUsable(payload.couponCode, payload.category);
-    if (!result.ok) {
-      return res.status(400).json({ error: `Coupon problem: ${result.error}` });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let appliedCoupon = null;
+    if (payload.couponCode) {
+      const result = await checkCouponUsable(client, payload.couponCode, payload.category);
+      if (!result.ok) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Coupon problem: ${result.error}` });
+      }
+      await client.query('UPDATE coupons SET used_count = used_count + 1 WHERE id = $1', [result.coupon.id]);
+      appliedCoupon = { code: result.coupon.code, percentage: Number(result.coupon.percentage) };
     }
-    // Consume one use now that we're actually creating the registration.
-    const coupons = readCoupons();
-    const coupon = coupons.find(c => c.id === result.coupon.id);
-    coupon.usedCount += 1;
-    writeCoupons(coupons);
-    appliedCoupon = { code: coupon.code, percentage: coupon.percentage };
+
+    const id = 'DD-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+
+    const { rows } = await client.query(
+      `INSERT INTO registrations (
+        id, category, category_label, gender_category, team_name, total_members,
+        members, base_amount, gst_amount, total_amount, coupon, event_date
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING *`,
+      [
+        id,
+        payload.category,
+        payload.categoryLabel || payload.category,
+        payload.genderCategory || null,
+        payload.teamName || null,
+        payload.totalMembers || payload.members.length,
+        JSON.stringify(payload.members),
+        payload.baseAmount || null,
+        payload.gstAmount || null,
+        payload.totalAmount,
+        appliedCoupon ? JSON.stringify(appliedCoupon) : null,
+        payload.eventDate || null
+      ]
+    );
+
+    await client.query('COMMIT');
+    res.json({ ok: true, registrationId: id, record: mapRegistrationRow(rows[0]) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('register failed:', err);
+    res.status(500).json({ error: 'Server error saving registration.' });
+  } finally {
+    client.release();
   }
-
-  const registrations = readRegistrations();
-  const id = 'DD-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
-
-  const record = {
-    id,
-    createdAt: new Date().toISOString(),
-    status: 'pending_payment',
-    category: payload.category,
-    categoryLabel: payload.categoryLabel || payload.category,
-    genderCategory: payload.genderCategory || null,
-    teamName: payload.teamName || null,
-    totalMembers: payload.totalMembers || payload.members.length,
-    members: payload.members,
-    baseAmount: payload.baseAmount || null,
-    gstAmount: payload.gstAmount || null,
-    totalAmount: payload.totalAmount,
-    coupon: appliedCoupon,
-    paidAt: null
-  };
-
-  registrations.push(record);
-  writeRegistrations(registrations);
-
-  res.json({ ok: true, registrationId: id, record });
 });
 
 // ---------- Create a Razorpay order ----------
@@ -297,11 +372,10 @@ app.post('/api/create-order', async (req, res) => {
     return res.status(400).json({ error: 'Amount must be at least ₹1 (100 paise).' });
   }
 
-  const registrations = readRegistrations();
-  const record = registrations.find(r => r.id === registrationId);
-  if (!record) return res.status(404).json({ error: 'Registration not found.' });
-
   try {
+    const { rows } = await pool.query('SELECT id FROM registrations WHERE id = $1', [registrationId]);
+    if (!rows.length) return res.status(404).json({ error: 'Registration not found.' });
+
     const order = await razorpay.orders.create({
       amount: amountInPaise,
       currency: 'INR',
@@ -309,8 +383,7 @@ app.post('/api/create-order', async (req, res) => {
       notes: { registrationId, origin: 'deadly-dozen' }
     });
 
-    record.razorpayOrderId = order.id;
-    writeRegistrations(registrations);
+    await pool.query('UPDATE registrations SET razorpay_order_id = $1 WHERE id = $2', [order.id, registrationId]);
 
     res.json({ ok: true, order, keyId: RAZORPAY_KEY_ID });
   } catch (err) {
@@ -342,27 +415,31 @@ app.post('/api/verify-payment', async (req, res) => {
     .digest('hex');
 
   const isValid = expectedSignature === razorpay_signature;
+  const newStatus = isValid ? 'paid' : 'payment_verification_failed';
 
-  const registrations = readRegistrations();
-  const record = registrations.find(r => r.id === registrationId);
+  try {
+    const { rows } = await pool.query(
+      `UPDATE registrations
+       SET status = $1, razorpay_payment_id = $2, razorpay_signature = $3, paid_at = $4
+       WHERE id = $5
+       RETURNING *`,
+      [newStatus, razorpay_payment_id, razorpay_signature, isValid ? new Date().toISOString() : null, registrationId]
+    );
+    const record = rows[0] ? mapRegistrationRow(rows[0]) : null;
 
-  if (record) {
-    record.status = isValid ? 'paid' : 'payment_verification_failed';
-    record.razorpayPaymentId = razorpay_payment_id;
-    record.razorpaySignature = razorpay_signature;
-    record.paidAt = isValid ? new Date().toISOString() : null;
-    writeRegistrations(registrations);
+    if (!isValid) {
+      return res.status(400).json({ ok: false, error: 'Signature verification failed.' });
+    }
+
+    if (record) {
+      await sendConfirmationEmail(record);
+    }
+
+    res.json({ ok: true, status: 'paid' });
+  } catch (err) {
+    console.error('verify-payment failed:', err);
+    res.status(500).json({ error: 'Server error verifying payment.' });
   }
-
-  if (!isValid) {
-    return res.status(400).json({ ok: false, error: 'Signature verification failed.' });
-  }
-
-  if (record) {
-    await sendConfirmationEmail(record);
-  }
-
-  res.json({ ok: true, status: 'paid' });
 });
 
 // ---------- Send a test confirmation email (admin only) ----------
@@ -394,75 +471,141 @@ app.post('/api/test-confirmation-email', requireAdmin, async (req, res) => {
 });
 
 // ---------- List all registrations (admin only) ----------
-app.get('/api/registrations', requireAdmin, (req, res) => {
-  res.json(readRegistrations());
+app.get('/api/registrations', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations ORDER BY created_at DESC');
+    res.json(rows.map(mapRegistrationRow));
+  } catch (err) {
+    console.error('list registrations failed:', err);
+    res.status(500).json({ error: 'Server error loading registrations.' });
+  }
 });
 
 // ---------- Get one registration (admin only) ----------
-app.get('/api/registrations/:id', requireAdmin, (req, res) => {
-  const list = readRegistrations();
-  const record = list.find(r => r.id === req.params.id);
-  if (!record) return res.status(404).json({ error: 'Not found' });
-  res.json(record);
+app.get('/api/registrations/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(mapRegistrationRow(rows[0]));
+  } catch (err) {
+    console.error('get registration failed:', err);
+    res.status(500).json({ error: 'Server error loading registration.' });
+  }
 });
 
 // ---------- Status + category summary counts (admin only) ----------
-app.get('/api/registrations-summary', requireAdmin, (req, res) => {
-  const list = readRegistrations();
-  const summary = {
-    total: list.length,
-    paid: 0,
-    pending_payment: 0,
-    payment_verification_failed: 0,
-    byCategory: { solo: 0, double: 0, relay: 0 },
-    participantsByCategory: { solo: 0, double: 0, relay: 0 }
-  };
-  list.forEach(r => {
-    if (summary[r.status] !== undefined) summary[r.status]++;
-    if (summary.byCategory[r.category] !== undefined) {
-      summary.byCategory[r.category]++;
-      summary.participantsByCategory[r.category] += (r.totalMembers || (r.members || []).length || 0);
-    }
-  });
-  res.json(summary);
+app.get('/api/registrations-summary', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations');
+    const list = rows.map(mapRegistrationRow);
+    const summary = {
+      total: list.length,
+      paid: 0,
+      pending_payment: 0,
+      payment_verification_failed: 0,
+      byCategory: { solo: 0, double: 0, relay: 0 },
+      participantsByCategory: { solo: 0, double: 0, relay: 0 }
+    };
+    list.forEach(r => {
+      if (summary[r.status] !== undefined) summary[r.status]++;
+      if (summary.byCategory[r.category] !== undefined) {
+        summary.byCategory[r.category]++;
+        summary.participantsByCategory[r.category] += (r.totalMembers || (r.members || []).length || 0);
+      }
+    });
+    res.json(summary);
+  } catch (err) {
+    console.error('summary failed:', err);
+    res.status(500).json({ error: 'Server error computing summary.' });
+  }
+});
+
+// ---------- Export all registrations as CSV (admin only) ----------
+function csvEscape(value) {
+  const str = value === null || value === undefined ? '' : String(value);
+  if (/[",\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+app.get('/api/registrations/export.csv', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations ORDER BY created_at DESC');
+    const list = rows.map(mapRegistrationRow);
+
+    const headers = [
+      'Registration ID', 'Status', 'Category', 'Gender', 'Team Name',
+      'Lead First Name', 'Lead Last Name', 'Lead Email', 'Lead Contact',
+      'Members Count', 'Base Amount', 'GST Amount', 'Total Amount',
+      'Coupon Code', 'Coupon %', 'Event Date', 'Registered At', 'Paid At', 'Razorpay Payment ID'
+    ];
+
+    const lines = [headers.map(csvEscape).join(',')];
+
+    list.forEach(r => {
+      const lead = (r.members || [])[0] || {};
+      lines.push([
+        r.id, r.status, r.categoryLabel || r.category, r.genderCategory, r.teamName,
+        lead.firstName, lead.lastName, lead.email, lead.contact,
+        r.totalMembers, r.baseAmount, r.gstAmount, r.totalAmount,
+        r.coupon ? r.coupon.code : '', r.coupon ? r.coupon.percentage : '',
+        r.eventDate, r.createdAt, r.paidAt, r.razorpayPaymentId
+      ].map(csvEscape).join(','));
+    });
+
+    const csv = lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="deadly-dozen-registrations-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('CSV export failed:', err);
+    res.status(500).json({ error: 'Server error generating CSV.' });
+  }
 });
 
 // ---------- Delete one registration (admin only) ----------
-app.delete('/api/registrations/:id', requireAdmin, (req, res) => {
-  const list = readRegistrations();
-  const idx = list.findIndex(r => r.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-
-  const [removed] = list.splice(idx, 1);
-  writeRegistrations(list);
-  res.json({ ok: true, deleted: removed.id });
+app.delete('/api/registrations/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('DELETE FROM registrations WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true, deleted: rows[0].id });
+  } catch (err) {
+    console.error('delete registration failed:', err);
+    res.status(500).json({ error: 'Server error deleting registration.' });
+  }
 });
 
 // ---------- Bulk delete registrations (admin only) ----------
-app.post('/api/registrations/bulk-delete', requireAdmin, (req, res) => {
+app.post('/api/registrations/bulk-delete', requireAdmin, async (req, res) => {
   const { ids } = req.body || {};
   if (!Array.isArray(ids) || !ids.length) {
     return res.status(400).json({ error: 'ids must be a non-empty array.' });
   }
-
-  const list = readRegistrations();
-  const idSet = new Set(ids);
-  const remaining = list.filter(r => !idSet.has(r.id));
-  const deletedCount = list.length - remaining.length;
-
-  writeRegistrations(remaining);
-  res.json({ ok: true, deletedCount });
+  try {
+    const { rowCount } = await pool.query('DELETE FROM registrations WHERE id = ANY($1)', [ids]);
+    res.json({ ok: true, deletedCount: rowCount });
+  } catch (err) {
+    console.error('bulk delete failed:', err);
+    res.status(500).json({ error: 'Server error deleting registrations.' });
+  }
 });
 
 // ---------- List all coupons (admin only) ----------
-app.get('/api/coupons', requireAdmin, (req, res) => {
-  res.json(readCoupons());
+app.get('/api/coupons', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM coupons ORDER BY created_at DESC');
+    res.json(rows.map(mapCouponRow));
+  } catch (err) {
+    console.error('list coupons failed:', err);
+    res.status(500).json({ error: 'Server error loading coupons.' });
+  }
 });
 
 // ---------- Create a coupon (admin only) ----------
 // Body: { code, percentage, categories: ['solo','double','relay'] or ['all'],
 //         assignedName, assignedPhone, assignedEmail, maxUses }
-app.post('/api/coupons', requireAdmin, (req, res) => {
+app.post('/api/coupons', requireAdmin, async (req, res) => {
   const body = req.body || {};
   const code = (body.code || '').trim().toUpperCase();
   const percentage = Number(body.percentage);
@@ -480,53 +623,63 @@ app.post('/api/coupons', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'How many uses to assign must be a number greater than 0.' });
   }
 
-  const coupons = readCoupons();
-  if (coupons.some(c => c.code === code)) {
-    return res.status(400).json({ error: `Coupon code "${code}" already exists.` });
+  const id = 'CPN-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO coupons (id, code, percentage, categories, assigned_name, assigned_phone, assigned_email, max_uses)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *`,
+      [id, code, percentage, JSON.stringify(categories), body.assignedName || '', body.assignedPhone || '', body.assignedEmail || '', maxUses]
+    );
+    res.json({ ok: true, coupon: mapCouponRow(rows[0]) });
+  } catch (err) {
+    if (err.code === '23505') { // unique_violation on code
+      return res.status(400).json({ error: `Coupon code "${code}" already exists.` });
+    }
+    console.error('create coupon failed:', err);
+    res.status(500).json({ error: 'Server error creating coupon.' });
   }
-
-  const coupon = {
-    id: 'CPN-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
-    code,
-    percentage,
-    categories,
-    assignedName: body.assignedName || '',
-    assignedPhone: body.assignedPhone || '',
-    assignedEmail: body.assignedEmail || '',
-    maxUses,
-    usedCount: 0,
-    active: true,
-    createdAt: new Date().toISOString()
-  };
-
-  coupons.push(coupon);
-  writeCoupons(coupons);
-  res.json({ ok: true, coupon });
 });
 
 // ---------- Toggle a coupon active/inactive (admin only) ----------
-app.patch('/api/coupons/:id', requireAdmin, (req, res) => {
-  const coupons = readCoupons();
-  const coupon = coupons.find(c => c.id === req.params.id);
-  if (!coupon) return res.status(404).json({ error: 'Coupon not found.' });
-
-  if (typeof req.body.active === 'boolean') coupon.active = req.body.active;
-  writeCoupons(coupons);
-  res.json({ ok: true, coupon });
+app.patch('/api/coupons/:id', requireAdmin, async (req, res) => {
+  if (typeof req.body.active !== 'boolean') {
+    return res.status(400).json({ error: 'Body must include a boolean "active" field.' });
+  }
+  try {
+    const { rows } = await pool.query(
+      'UPDATE coupons SET active = $1 WHERE id = $2 RETURNING *',
+      [req.body.active, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Coupon not found.' });
+    res.json({ ok: true, coupon: mapCouponRow(rows[0]) });
+  } catch (err) {
+    console.error('toggle coupon failed:', err);
+    res.status(500).json({ error: 'Server error updating coupon.' });
+  }
 });
 
 // ---------- Delete a coupon (admin only) ----------
-app.delete('/api/coupons/:id', requireAdmin, (req, res) => {
-  const coupons = readCoupons();
-  const idx = coupons.findIndex(c => c.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Coupon not found.' });
-
-  const [removed] = coupons.splice(idx, 1);
-  writeCoupons(coupons);
-  res.json({ ok: true, deleted: removed.id });
+app.delete('/api/coupons/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('DELETE FROM coupons WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Coupon not found.' });
+    res.json({ ok: true, deleted: rows[0].id });
+  } catch (err) {
+    console.error('delete coupon failed:', err);
+    res.status(500).json({ error: 'Server error deleting coupon.' });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`Deadly Dozen Registration backend running on http://localhost:${PORT}`);
-  console.log(`Registration data is stored in: ${DATA_FILE}`);
-});
+ensureSchema()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Deadly Dozen Registration backend running on http://localhost:${PORT}`);
+      console.log('Storage: Render Postgres (deadly-dozen-db)');
+    });
+  })
+  .catch(err => {
+    console.error('❌ Failed to set up database schema — server not started:', err);
+    process.exit(1);
+  });
