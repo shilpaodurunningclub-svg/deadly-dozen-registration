@@ -263,6 +263,7 @@ app.post('/api/register', (req, res) => {
     status: 'pending_payment',
     category: payload.category,
     categoryLabel: payload.categoryLabel || payload.category,
+    genderCategory: payload.genderCategory || null,
     teamName: payload.teamName || null,
     totalMembers: payload.totalMembers || payload.members.length,
     members: payload.members,
