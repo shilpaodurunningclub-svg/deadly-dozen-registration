@@ -95,6 +95,21 @@
   .category-card .cat-name { font-weight: 700; color: var(--red); letter-spacing: 0.5px; font-size: 14px; }
   .category-card .cat-stats { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: var(--muted); }
   .category-card .cat-stats b { color: var(--ink); font-size: 15px; }
+  .gender-breakdown {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .gender-breakdown .g-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .gender-breakdown .g-row b { color: var(--ink); font-weight: 600; }
 
   /* Filter tabs */
   .filter-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -238,16 +253,19 @@
         <div class="cat-name">SOLO</div>
         <div class="cat-stats"><span>Entries</span><b id="soloEntries">0</b></div>
         <div class="cat-stats"><span>Participants</span><b id="soloParticipants">0</b></div>
+        <div class="gender-breakdown" id="soloGenderBreakdown"></div>
       </div>
       <div class="category-card">
         <div class="cat-name">DOUBLE</div>
         <div class="cat-stats"><span>Teams</span><b id="doubleEntries">0</b></div>
         <div class="cat-stats"><span>Participants</span><b id="doubleParticipants">0</b></div>
+        <div class="gender-breakdown" id="doubleGenderBreakdown"></div>
       </div>
       <div class="category-card">
         <div class="cat-name">RELAY</div>
         <div class="cat-stats"><span>Teams</span><b id="relayEntries">0</b></div>
         <div class="cat-stats"><span>Participants</span><b id="relayParticipants">0</b></div>
+        <div class="gender-breakdown" id="relayGenderBreakdown"></div>
       </div>
     </div>
 
@@ -344,6 +362,23 @@
       const p = rows.reduce((sum, r) => sum + (r.totalMembers || (r.members || []).length || 0), 0);
       document.getElementById(cat + 'Entries').textContent = rows.length;
       document.getElementById(cat + 'Participants').textContent = p;
+
+      const genderCounts = {};
+      rows.forEach(r => {
+        const g = r.genderCategory || 'Unspecified';
+        genderCounts[g] = (genderCounts[g] || 0) + 1;
+      });
+
+      const breakdownEl = document.getElementById(cat + 'GenderBreakdown');
+      const genderKeys = Object.keys(genderCounts);
+      if (!genderKeys.length) {
+        breakdownEl.innerHTML = '';
+      } else {
+        breakdownEl.innerHTML = genderKeys
+          .sort()
+          .map(g => `<div class="g-row"><span>${g}</span><b>${genderCounts[g]}</b></div>`)
+          .join('');
+      }
     });
   }
 
