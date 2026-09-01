@@ -767,6 +767,16 @@
   </div>
 
   <div class="category-summary">Registering for: <strong id="selectedCategoryLabel"></strong></div>
+
+  <div class="field" id="teamGenderWrap" style="display:none;">
+    <label class="field-label" for="teamGender">Team Composition *</label>
+    <select id="teamGender" form="regForm">
+      <option value="" disabled selected>Select team composition</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Mixed</option>
+    </select>
+  </div>
  
   <form id="regForm" onsubmit="return handleSubmit(event)">
  
@@ -869,13 +879,6 @@
       </div>
       <div class="field">
         <input type="text" placeholder="Postcode / zipcode *" required>
-      </div>
-      <div class="field">
-        <select required>
-          <option value="" disabled selected>Country *</option>
-          <option>India</option>
-          <option>Other</option>
-        </select>
       </div>
       <div class="field">
         <select required>
@@ -1119,10 +1122,12 @@
   async function submitRegistrationToBackend() {
     const info = CATEGORY_INFO[selectedCategory];
     const price = getEffectivePrice(selectedCategory);
+    const teamGenderEl = document.getElementById('teamGender');
     const payload = {
       category: selectedCategory,
       categoryLabel: info.label + (TEST_MODE ? ' (TEST)' : ''),
       teamName: teamName || null,
+      teamComposition: info.team ? (teamGenderEl.value || null) : null,
       totalMembers: totalMembers,
       members: collectedMembers,
       baseAmount: price,
@@ -1275,6 +1280,17 @@
     document.getElementById('selectedCategoryLabel').textContent = info.label;
     document.getElementById('feeCategoryLabel').textContent = info.label + ' entry fee';
 
+    const teamGenderWrap = document.getElementById('teamGenderWrap');
+    const teamGenderSelect = document.getElementById('teamGender');
+    if (info.team) {
+      teamGenderWrap.style.display = '';
+      teamGenderSelect.required = true;
+    } else {
+      teamGenderWrap.style.display = 'none';
+      teamGenderSelect.required = false;
+      teamGenderSelect.value = '';
+    }
+
     updateTeamProgressUI();
     updatePricing();
     window.scrollTo(0, 0);
@@ -1343,6 +1359,7 @@
     if (confirm('Discard this registration?')) {
       document.getElementById('regForm').reset();
       toggleMedicalDetails(false);
+      document.getElementById('teamGender').value = '';
       collectedMembers = [];
       currentRegistrationId = null;
       backToCategory();
