@@ -78,6 +78,7 @@
   .summary-card.total .num { color: var(--ink); }
   .summary-card.success .num { color: var(--green); }
   .summary-card.pending .num { color: var(--amber); }
+  .summary-card.gender .num { color: var(--red); }
 
   .category-row {
     display: grid;
@@ -248,6 +249,8 @@
       <div class="summary-card total"><div class="num" id="sumParticipants">0</div><div class="label">Total participants</div></div>
     </div>
 
+    <div class="summary-row" id="genderSummaryRow"></div>
+
     <div class="category-row">
       <div class="category-card">
         <div class="cat-name">SOLO</div>
@@ -356,6 +359,22 @@
     document.getElementById('sumPaid').textContent = paid;
     document.getElementById('sumPending').textContent = pending;
     document.getElementById('sumParticipants').textContent = participants;
+
+    // Overall gender breakdown, across every category combined
+    const overallGenderCounts = {};
+    allRecords.forEach(r => {
+      const g = r.genderCategory || 'Unspecified';
+      overallGenderCounts[g] = (overallGenderCounts[g] || 0) + 1;
+    });
+    const genderRow = document.getElementById('genderSummaryRow');
+    const genderKeysOverall = Object.keys(overallGenderCounts).sort();
+    if (!genderKeysOverall.length) {
+      genderRow.innerHTML = '';
+    } else {
+      genderRow.innerHTML = genderKeysOverall
+        .map(g => `<div class="summary-card gender"><div class="num">${overallGenderCounts[g]}</div><div class="label">${g}</div></div>`)
+        .join('');
+    }
 
     ['solo', 'double', 'relay'].forEach(cat => {
       const rows = allRecords.filter(r => r.category === cat);
