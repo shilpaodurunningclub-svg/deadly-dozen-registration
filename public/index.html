@@ -1008,6 +1008,20 @@
         <span id="feeCategoryLabel">Category</span>
         <span id="baseAmount">₹0</span>
       </div>
+
+      <div class="field">
+        <label class="field-label" for="couponInput">Have a coupon code?</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="couponInput" placeholder="Enter coupon code" style="text-transform:uppercase; flex:1;">
+          <button type="button" onclick="applyCoupon()" style="padding:0 18px; border-radius:6px; border:1px solid var(--red); background:#fff; color:var(--red); font-weight:700; cursor:pointer;">Apply</button>
+        </div>
+        <div id="couponMsg" style="font-size:13px; margin-top:6px;"></div>
+      </div>
+
+      <div class="price-row" id="discountRow" style="display:none; color:var(--red);">
+        <span id="discountLabel">Discount</span>
+        <span id="discountAmount">-₹0</span>
+      </div>
  
       <div class="field">
         <label class="field-label">GST</label>
@@ -1108,6 +1122,8 @@
   let selectedCategory = null;
   let selectedGender = null;
   let teamName = '';
+  let appliedCouponCode = null;
+  let discountPercent = 0;
   let memberIndex = 1;
   let totalMembers = 1;
 
@@ -1149,7 +1165,8 @@
 
   async function submitRegistrationToBackend() {
     const info = CATEGORY_INFO[selectedCategory];
-    const price = getEffectivePrice(selectedCategory);
+    const { afterDiscount } = getDiscountedBase();
+    const gstAmt = TEST_MODE ? 0 : Math.round(afterDiscount * GST_RATE / 100);
     const payload = {
       category: selectedCategory,
       categoryLabel: info.label + ' — ' + selectedGender + (TEST_MODE ? ' (TEST)' : ''),
@@ -1157,10 +1174,11 @@
       teamName: teamName || null,
       totalMembers: totalMembers,
       members: collectedMembers,
-      baseAmount: price,
-      gstAmount: TEST_MODE ? 0 : Math.round(price * GST_RATE / 100),
-      totalAmount: price + (TEST_MODE ? 0 : Math.round(price * GST_RATE / 100)),
-      eventDate: `${info.date}, ${info.time}`
+      baseAmount: afterDiscount,
+      gstAmount: gstAmt,
+      totalAmount: afterDiscount + gstAmt,
+      eventDate: `${info.date}, ${info.time}`,
+      couponCode: appliedCouponCode || undefined
     };
     try {
       const res = await fetch(`${API_BASE}/api/register`, {
@@ -1171,6 +1189,8 @@
       const data = await res.json();
       if (data && data.ok) {
         currentRegistrationId = data.registrationId;
+      } else {
+        alert('Could not save your registration: ' + (data.error || 'unknown error') + '\nPlease check your coupon code (if any) and try again.');
       }
     } catch (e) {
       console.warn('Could not save registration to server:', e);
@@ -1303,6 +1323,12 @@
     totalMembers = info.size;
     collectedMembers = [];
     currentRegistrationId = null;
+    appliedCouponCode = null;
+    discountPercent = 0;
+    const couponInputEl = document.getElementById('couponInput');
+    if (couponInputEl) couponInputEl.value = '';
+    const couponMsgEl = document.getElementById('couponMsg');
+    if (couponMsgEl) couponMsgEl.textContent = '';
 
     document.getElementById('registrationWrap').style.display = '';
     document.getElementById('selectedCategoryLabel').textContent = info.label + ' — ' + selectedGender;
@@ -1336,16 +1362,72 @@
     window.scrollTo(0, 0);
   }
 
+  function getDiscountedBase() {
+    const base = getEffectivePrice(selectedCategory);
+    if (discountPercent <= 0) return { base, discountValue: 0, afterDiscount: base };
+    const discountValue = Math.round(base * discountPercent / 100);
+    return { base, discountValue, afterDiscount: base - discountValue };
+  }
+
   function updatePricing() {
     if (!selectedCategory) return;
-    const base = getEffectivePrice(selectedCategory);
-    const gstAmt = TEST_MODE ? 0 : Math.round(base * GST_RATE / 100);
-    const total = base + gstAmt;
+    const { base, discountValue, afterDiscount } = getDiscountedBase();
+    const gstAmt = TEST_MODE ? 0 : Math.round(afterDiscount * GST_RATE / 100);
+    const total = afterDiscount + gstAmt;
 
     document.getElementById('baseAmount').textContent = formatINR(base) + (TEST_MODE ? ' (TEST)' : '');
     document.getElementById('gstPct').textContent = GST_RATE;
     document.getElementById('gstAmount').textContent = formatINR(gstAmt);
     document.getElementById('totalAmount').textContent = formatINR(total);
+
+    const discountRow = document.getElementById('discountRow');
+    if (discountPercent > 0) {
+      discountRow.style.display = '';
+      document.getElementById('discountLabel').textContent = `Discount (${appliedCouponCode}, ${discountPercent}%)`;
+      document.getElementById('discountAmount').textContent = '-' + formatINR(discountValue);
+    } else {
+      discountRow.style.display = 'none';
+    }
+  }
+
+  async function applyCoupon() {
+    const input = document.getElementById('couponInput');
+    const msgEl = document.getElementById('couponMsg');
+    const code = input.value.trim().toUpperCase();
+    msgEl.textContent = '';
+    msgEl.style.color = '';
+
+    if (!code) {
+      appliedCouponCode = null;
+      discountPercent = 0;
+      updatePricing();
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/validate-coupon`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, category: selectedCategory })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        appliedCouponCode = null;
+        discountPercent = 0;
+        msgEl.textContent = data.error || 'Invalid coupon code.';
+        msgEl.style.color = 'var(--red)';
+        updatePricing();
+        return;
+      }
+      appliedCouponCode = data.code;
+      discountPercent = data.percentage;
+      msgEl.textContent = `"${data.code}" applied — ${data.percentage}% off.`;
+      msgEl.style.color = 'var(--green, #1a7a3a)';
+      updatePricing();
+    } catch (e) {
+      msgEl.textContent = 'Could not reach the server to check this code.';
+      msgEl.style.color = 'var(--red)';
+    }
   }
  
   function setEntry(value) {
@@ -1446,9 +1528,9 @@
     }
 
     const info = CATEGORY_INFO[selectedCategory];
-    lastBase = getEffectivePrice(selectedCategory);
+    lastBase = getDiscountedBase().afterDiscount;
     lastGst = TEST_MODE ? 0 : Math.round(lastBase * GST_RATE / 100);
-    lastCategoryLabel = info.label + (TEST_MODE ? ' (TEST — ₹1)' : '');
+    lastCategoryLabel = info.label + (discountPercent > 0 ? ` (${appliedCouponCode} -${discountPercent}%)` : '') + (TEST_MODE ? ' (TEST — ₹1)' : '');
 
     submitRegistrationToBackend();
  
