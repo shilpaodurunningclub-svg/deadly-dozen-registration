@@ -1355,7 +1355,24 @@
     }
   }
 
+  function resetRegistrationForm() {
+    const form = document.getElementById('regForm');
+    if (form) form.reset();
+    toggleMedicalDetails(false);
+    selectedGender = null;
+    collectedMembers = [];
+    currentRegistrationId = null;
+    memberIndex = 1;
+    appliedCouponCode = null;
+    discountPercent = 0;
+    const couponInputEl = document.getElementById('couponInput');
+    if (couponInputEl) couponInputEl.value = '';
+    const couponMsgEl = document.getElementById('couponMsg');
+    if (couponMsgEl) couponMsgEl.textContent = '';
+  }
+
   function backToCategory() {
+    resetRegistrationForm();
     document.getElementById('registrationWrap').style.display = 'none';
     document.getElementById('teamSetupPage').style.display = 'none';
     document.getElementById('categoryPage').style.display = '';
@@ -1456,11 +1473,6 @@
  
   function cancelForm() {
     if (confirm('Discard this registration?')) {
-      document.getElementById('regForm').reset();
-      toggleMedicalDetails(false);
-      selectedGender = null;
-      collectedMembers = [];
-      currentRegistrationId = null;
       backToCategory();
     }
   }
