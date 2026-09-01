@@ -240,6 +240,7 @@
     <div class="top-row">
       <h1>Deadly Dozen Registration — Report</h1>
       <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+      <button class="refresh-btn" onclick="exportCsv()" style="margin-right:8px;">⬇ Export CSV</button>
     </div>
 
     <div class="summary-row">
@@ -346,6 +347,27 @@
       renderTable();
     } catch (e) {
       errEl.textContent = 'Could not reach the server.';
+    }
+  }
+
+  async function exportCsv() {
+    try {
+      const res = await fetch(`${API_BASE}/api/registrations/export.csv`, { headers: { 'x-admin-key': adminKey } });
+      if (!res.ok) {
+        alert('Could not export CSV (status ' + res.status + ').');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deadly-dozen-registrations-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Could not reach the server to export CSV.');
     }
   }
 
