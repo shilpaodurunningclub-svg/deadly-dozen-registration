@@ -1530,7 +1530,7 @@
     const info = CATEGORY_INFO[selectedCategory];
     lastBase = getDiscountedBase().afterDiscount;
     lastGst = TEST_MODE ? 0 : Math.round(lastBase * GST_RATE / 100);
-    lastCategoryLabel = info.label + (discountPercent > 0 ? ` (${appliedCouponCode} -${discountPercent}%)` : '') + (TEST_MODE ? ' (TEST — ₹1)' : '');
+    lastCategoryLabel = info.label + ' — ' + selectedGender + (discountPercent > 0 ? ` (${appliedCouponCode} -${discountPercent}%)` : '') + (TEST_MODE ? ' (TEST — ₹1)' : '');
 
     submitRegistrationToBackend();
  
