@@ -10,6 +10,7 @@ require('dns').setDefaultResultOrder('ipv4first'); // Render has no outbound IPv
 const app = express();
 const PORT = process.env.PORT || 4000;
 const DATA_FILE = path.join(__dirname, 'data', 'registrations.json');
+const COUPONS_FILE = path.join(__dirname, 'data', 'coupons.json');
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
@@ -174,9 +175,59 @@ function writeRegistrations(list) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(list, null, 2), 'utf8');
 }
 
+// ---------- Coupon storage ----------
+function readCoupons() {
+  if (!fs.existsSync(COUPONS_FILE)) return [];
+  try {
+    const raw = fs.readFileSync(COUPONS_FILE, 'utf8');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error('Failed to read coupons.json:', e);
+    return [];
+  }
+}
+
+function writeCoupons(list) {
+  fs.mkdirSync(path.dirname(COUPONS_FILE), { recursive: true });
+  fs.writeFileSync(COUPONS_FILE, JSON.stringify(list, null, 2), 'utf8');
+}
+
+// Checks whether a coupon can currently be used for a given category.
+// Returns { ok: true, coupon } or { ok: false, error }.
+function checkCouponUsable(code, category) {
+  if (!code) return { ok: false, error: 'No coupon code provided.' };
+  const coupons = readCoupons();
+  const coupon = coupons.find(c => c.code.toUpperCase() === String(code).toUpperCase());
+
+  if (!coupon) return { ok: false, error: 'Coupon code not found.' };
+  if (!coupon.active) return { ok: false, error: 'This coupon is no longer active.' };
+  if (!coupon.categories.includes('all') && !coupon.categories.includes(category)) {
+    return { ok: false, error: 'This coupon does not apply to the selected category.' };
+  }
+  if (coupon.usedCount >= coupon.maxUses) {
+    return { ok: false, error: 'This coupon has already been fully used.' };
+  }
+  return { ok: true, coupon };
+}
+
 // ---------- Public config (safe to expose) ----------
 app.get('/api/config', (req, res) => {
   res.json({ razorpayKeyId: RAZORPAY_KEY_ID || null });
+});
+
+// ---------- Validate a coupon code (public — called as the user types it in) ----------
+// Body: { code, category }. Does NOT consume a use — that only happens at /api/register.
+app.post('/api/validate-coupon', (req, res) => {
+  const { code, category } = req.body || {};
+  const result = checkCouponUsable(code, category);
+  if (!result.ok) {
+    return res.status(400).json({ valid: false, error: result.error });
+  }
+  res.json({
+    valid: true,
+    percentage: result.coupon.percentage,
+    code: result.coupon.code
+  });
 });
 
 // ---------- Save a registration ----------
@@ -187,6 +238,20 @@ app.post('/api/register', (req, res) => {
 
   if (!payload.category || typeof payload.totalAmount !== 'number' || !Array.isArray(payload.members) || !payload.members.length) {
     return res.status(400).json({ error: 'Missing required fields (category, totalAmount, members[]).' });
+  }
+
+  let appliedCoupon = null;
+  if (payload.couponCode) {
+    const result = checkCouponUsable(payload.couponCode, payload.category);
+    if (!result.ok) {
+      return res.status(400).json({ error: `Coupon problem: ${result.error}` });
+    }
+    // Consume one use now that we're actually creating the registration.
+    const coupons = readCoupons();
+    const coupon = coupons.find(c => c.id === result.coupon.id);
+    coupon.usedCount += 1;
+    writeCoupons(coupons);
+    appliedCoupon = { code: coupon.code, percentage: coupon.percentage };
   }
 
   const registrations = readRegistrations();
@@ -204,6 +269,7 @@ app.post('/api/register', (req, res) => {
     baseAmount: payload.baseAmount || null,
     gstAmount: payload.gstAmount || null,
     totalAmount: payload.totalAmount,
+    coupon: appliedCoupon,
     paidAt: null
   };
 
@@ -385,6 +451,78 @@ app.post('/api/registrations/bulk-delete', requireAdmin, (req, res) => {
 
   writeRegistrations(remaining);
   res.json({ ok: true, deletedCount });
+});
+
+// ---------- List all coupons (admin only) ----------
+app.get('/api/coupons', requireAdmin, (req, res) => {
+  res.json(readCoupons());
+});
+
+// ---------- Create a coupon (admin only) ----------
+// Body: { code, percentage, categories: ['solo','double','relay'] or ['all'],
+//         assignedName, assignedPhone, assignedEmail, maxUses }
+app.post('/api/coupons', requireAdmin, (req, res) => {
+  const body = req.body || {};
+  const code = (body.code || '').trim().toUpperCase();
+  const percentage = Number(body.percentage);
+  const categories = Array.isArray(body.categories) ? body.categories : [];
+  const maxUses = Number(body.maxUses);
+
+  if (!code) return res.status(400).json({ error: 'A coupon code is required.' });
+  if (!Number.isFinite(percentage) || percentage <= 0 || percentage > 100) {
+    return res.status(400).json({ error: 'Percentage must be a number between 1 and 100.' });
+  }
+  if (!categories.length) {
+    return res.status(400).json({ error: 'Select at least one category (or "all").' });
+  }
+  if (!Number.isFinite(maxUses) || maxUses <= 0) {
+    return res.status(400).json({ error: 'How many uses to assign must be a number greater than 0.' });
+  }
+
+  const coupons = readCoupons();
+  if (coupons.some(c => c.code === code)) {
+    return res.status(400).json({ error: `Coupon code "${code}" already exists.` });
+  }
+
+  const coupon = {
+    id: 'CPN-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
+    code,
+    percentage,
+    categories,
+    assignedName: body.assignedName || '',
+    assignedPhone: body.assignedPhone || '',
+    assignedEmail: body.assignedEmail || '',
+    maxUses,
+    usedCount: 0,
+    active: true,
+    createdAt: new Date().toISOString()
+  };
+
+  coupons.push(coupon);
+  writeCoupons(coupons);
+  res.json({ ok: true, coupon });
+});
+
+// ---------- Toggle a coupon active/inactive (admin only) ----------
+app.patch('/api/coupons/:id', requireAdmin, (req, res) => {
+  const coupons = readCoupons();
+  const coupon = coupons.find(c => c.id === req.params.id);
+  if (!coupon) return res.status(404).json({ error: 'Coupon not found.' });
+
+  if (typeof req.body.active === 'boolean') coupon.active = req.body.active;
+  writeCoupons(coupons);
+  res.json({ ok: true, coupon });
+});
+
+// ---------- Delete a coupon (admin only) ----------
+app.delete('/api/coupons/:id', requireAdmin, (req, res) => {
+  const coupons = readCoupons();
+  const idx = coupons.findIndex(c => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Coupon not found.' });
+
+  const [removed] = coupons.splice(idx, 1);
+  writeCoupons(coupons);
+  res.json({ ok: true, deleted: removed.id });
 });
 
 app.listen(PORT, () => {
