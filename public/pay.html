@@ -268,7 +268,8 @@
 
   function getQuickPayTotals() {
     const info = QUICK_PAY_CATEGORIES[quickCategory];
-    const entryFee = info.price; // already GST-inclusive
+    const baseFee = info.price; // pre-tax base price (e.g. Solo = 3999)
+    const entryFee = Math.round(baseFee * (1 + GST_RATE / 100)); // GST-inclusive fee shown to the user (e.g. Solo = 4719)
     const discountValue = qpDiscountPercent > 0 ? Math.round(entryFee * qpDiscountPercent / 100) : 0;
     const discountedEntryFee = entryFee - discountValue;
     const racePhoto = document.getElementById('qpRacePhoto').checked ? RACE_PHOTO_PRICE : 0;
