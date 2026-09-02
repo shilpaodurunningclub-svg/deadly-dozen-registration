@@ -141,8 +141,28 @@
   <div id="quickPayState" style="display:none;">
     <div class="detail-box">
       <div class="detail-row"><span id="qpCategoryLabel">Category</span><span id="qpBaseAmount">—</span></div>
-      <div class="detail-row"><span>GST (<span id="qpGstPct">18</span>%)</span><span id="qpGstAmount">—</span></div>
+      <p style="font-size:11px; color:var(--muted); margin:0 0 6px;">(inclusive of GST)</p>
+
+      <div class="field" style="margin-bottom:0;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; color:var(--ink);">
+          <input type="checkbox" id="qpRacePhoto" onchange="updateQuickPayTotal()" style="width:16px; height:16px;">
+          Add Race Photo (+₹1,500)
+        </label>
+      </div>
+
+      <div class="detail-row" id="qpDiscountRow" style="display:none; color:var(--red);">
+        <span id="qpDiscountLabel">Discount</span><span id="qpDiscountAmount">-₹0</span>
+      </div>
       <div class="detail-row total"><span>Total payable</span><span id="qpTotalAmount">—</span></div>
+    </div>
+
+    <div class="field">
+      <label for="qpCoupon">Have a coupon code?</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="qpCoupon" style="text-transform:uppercase; flex:1;">
+        <button type="button" onclick="applyQuickPayCoupon()" style="padding:0 16px; border-radius:6px; border:1px solid var(--red); background:#fff; color:var(--red); font-weight:700; cursor:pointer;">Apply</button>
+      </div>
+      <div id="qpCouponMsg" style="font-size:13px; margin-top:6px;"></div>
     </div>
 
     <div class="field"><label for="qpFirstName">First name *</label><input type="text" id="qpFirstName"></div>
@@ -234,18 +254,82 @@
   }
 
   // ---------- Mode B: fixed-price quick pay ----------
-  function showQuickPayForm(catKey) {
-    const info = QUICK_PAY_CATEGORIES[catKey];
-    const base = info.price;
-    const gst = Math.round(base * GST_RATE / 100);
-    const total = base + gst;
+  const RACE_PHOTO_PRICE = 1500;
+  let qpAppliedCouponCode = null;
+  let qpDiscountPercent = 0;
 
+  function showQuickPayForm(catKey) {
     document.getElementById('loadingState').style.display = 'none';
+    const info = QUICK_PAY_CATEGORIES[catKey];
     document.getElementById('qpCategoryLabel').textContent = info.label + ' entry fee';
-    document.getElementById('qpBaseAmount').textContent = '₹' + base.toLocaleString('en-IN');
-    document.getElementById('qpGstAmount').textContent = '₹' + gst.toLocaleString('en-IN');
-    document.getElementById('qpTotalAmount').textContent = '₹' + total.toLocaleString('en-IN');
+    updateQuickPayTotal();
     document.getElementById('quickPayState').style.display = '';
+  }
+
+  function getQuickPayTotals() {
+    const info = QUICK_PAY_CATEGORIES[quickCategory];
+    const entryFee = info.price; // already GST-inclusive
+    const discountValue = qpDiscountPercent > 0 ? Math.round(entryFee * qpDiscountPercent / 100) : 0;
+    const discountedEntryFee = entryFee - discountValue;
+    const racePhoto = document.getElementById('qpRacePhoto').checked ? RACE_PHOTO_PRICE : 0;
+    const total = discountedEntryFee + racePhoto;
+    return { entryFee, discountValue, racePhoto, total };
+  }
+
+  function updateQuickPayTotal() {
+    const { entryFee, discountValue, total } = getQuickPayTotals();
+    document.getElementById('qpBaseAmount').textContent = '₹' + entryFee.toLocaleString('en-IN');
+
+    const discountRow = document.getElementById('qpDiscountRow');
+    if (qpDiscountPercent > 0) {
+      discountRow.style.display = '';
+      document.getElementById('qpDiscountLabel').textContent = `Discount (${qpAppliedCouponCode}, ${qpDiscountPercent}%)`;
+      document.getElementById('qpDiscountAmount').textContent = '-₹' + discountValue.toLocaleString('en-IN');
+    } else {
+      discountRow.style.display = 'none';
+    }
+
+    document.getElementById('qpTotalAmount').textContent = '₹' + total.toLocaleString('en-IN');
+  }
+
+  async function applyQuickPayCoupon() {
+    const input = document.getElementById('qpCoupon');
+    const msgEl = document.getElementById('qpCouponMsg');
+    const code = input.value.trim().toUpperCase();
+    msgEl.textContent = '';
+    msgEl.style.color = '';
+
+    if (!code) {
+      qpAppliedCouponCode = null;
+      qpDiscountPercent = 0;
+      updateQuickPayTotal();
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/validate-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, category: quickCategory })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        qpAppliedCouponCode = null;
+        qpDiscountPercent = 0;
+        msgEl.textContent = data.error || 'Invalid coupon code.';
+        msgEl.style.color = 'var(--red)';
+        updateQuickPayTotal();
+        return;
+      }
+      qpAppliedCouponCode = data.code;
+      qpDiscountPercent = data.percentage;
+      msgEl.textContent = `"${data.code}" applied — ${data.percentage}% off.`;
+      msgEl.style.color = 'var(--green)';
+      updateQuickPayTotal();
+    } catch (e) {
+      msgEl.textContent = 'Could not reach the server to check this code.';
+      msgEl.style.color = 'var(--red)';
+    }
   }
 
   async function startQuickPay() {
@@ -267,9 +351,8 @@
     msgEl.className = 'status-msg';
 
     const info = QUICK_PAY_CATEGORIES[quickCategory];
-    const base = info.price;
-    const gst = Math.round(base * GST_RATE / 100);
-    const total = base + gst;
+    const { racePhoto, total } = getQuickPayTotals();
+    const categoryLabelFull = info.label + (racePhoto ? ' + Race Photo' : '') + (qpDiscountPercent > 0 ? ` (${qpAppliedCouponCode} -${qpDiscountPercent}%)` : '');
 
     try {
       const regRes = await fetch('/api/register', {
@@ -277,12 +360,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: quickCategory,
-          categoryLabel: info.label,
+          categoryLabel: categoryLabelFull,
           totalMembers: 1,
           members: [{ firstName, lastName, email, contact: phone }],
-          baseAmount: base,
-          gstAmount: gst,
-          totalAmount: total
+          baseAmount: total,
+          gstAmount: 0,
+          totalAmount: total,
+          couponCode: qpAppliedCouponCode || undefined
         })
       });
       const regData = await regRes.json();
