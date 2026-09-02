@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadly Dozen — Complete Your Payment</title>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<style>
+  :root {
+    --red: #a3271f;
+    --red-dark: #7f1e18;
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --border: #d9d9d9;
+    --card: #f6f5f4;
+    --page: #e9e7e5;
+    --green: #1a7a3a;
+    --amber: #a06a00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .topbar { position: fixed; top: 0; left: 0; right: 0; height: 6px; background: var(--red); }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    max-width: 440px;
+    width: 100%;
+    text-align: center;
+  }
+  h1 { color: var(--red); font-size: 20px; letter-spacing: 0.5px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  .detail-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    text-align: left;
+    margin-bottom: 22px;
+  }
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 5px 0;
+  }
+  .detail-row span:first-child { color: var(--muted); }
+  .detail-row.total {
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+    padding-top: 10px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .field { text-align: left; margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .field input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .pay-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--red);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    font-size: 15px;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .pay-btn:hover { background: var(--red-dark); }
+  .pay-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  .status-msg { font-size: 14px; margin-top: 16px; min-height: 18px; }
+  .status-msg.error { color: var(--red); }
+  .status-msg.success { color: var(--green); font-weight: 600; }
+
+  .paid-badge {
+    display: inline-block;
+    background: #e3f4e8;
+    color: var(--green);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  .loading, .not-found { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+<div class="card">
+  <h1>DEADLY DOZEN</h1>
+  <p class="sub">Complete your registration payment</p>
+
+  <div id="loadingState" class="loading">Loading…</div>
+  <div id="notFoundState" class="not-found" style="display:none;">
+    We couldn't find this registration. Please check the link, or contact us if you think this is a mistake.
+  </div>
+
+  <!-- Mode A: existing registration, identified by ?id= -->
+  <div id="payState" style="display:none;">
+    <div class="detail-box">
+      <div class="detail-row"><span>Registrant</span><span id="leadName">—</span></div>
+      <div class="detail-row"><span id="feeCategoryLabel">Category</span><span id="baseAmount">—</span></div>
+      <div class="detail-row" id="teamNameRow" style="display:none;"><span>Team</span><span id="teamName">—</span></div>
+      <div class="detail-row"><span>GST (<span id="gstPct">18</span>%)</span><span id="gstAmount">—</span></div>
+      <div class="detail-row total"><span>Total payable</span><span id="totalAmount">—</span></div>
+    </div>
+    <button class="pay-btn" id="payBtn" onclick="startPaymentForRegistration()">PAY NOW</button>
+    <div class="status-msg" id="statusMsg"></div>
+  </div>
+
+  <!-- Mode B: fixed-price quick pay, identified by ?category=solo|double|relay -->
+  <div id="quickPayState" style="display:none;">
+    <div class="detail-box">
+      <div class="detail-row"><span id="qpCategoryLabel">Category</span><span id="qpBaseAmount">—</span></div>
+      <div class="detail-row"><span>GST (<span id="qpGstPct">18</span>%)</span><span id="qpGstAmount">—</span></div>
+      <div class="detail-row total"><span>Total payable</span><span id="qpTotalAmount">—</span></div>
+    </div>
+
+    <div class="field"><label for="qpFirstName">First name *</label><input type="text" id="qpFirstName"></div>
+    <div class="field"><label for="qpLastName">Last name *</label><input type="text" id="qpLastName"></div>
+    <div class="field"><label for="qpEmail">Email address *</label><input type="email" id="qpEmail"></div>
+    <div class="field"><label for="qpPhone">Contact number *</label><input type="tel" id="qpPhone"></div>
+
+    <button class="pay-btn" id="qpPayBtn" onclick="startQuickPay()">PAY NOW</button>
+    <div class="status-msg" id="qpStatusMsg"></div>
+  </div>
+
+  <div id="alreadyPaidState" style="display:none;">
+    <div class="paid-badge">✓ Already Paid</div>
+    <p style="color:var(--muted); font-size:14px;">This registration has already been paid for. No further action is needed.</p>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const registrationId = params.get('id');
+  const quickCategory = params.get('category');
+  let regDetails = null;
+
+  // Fixed pricing for quick-pay links — mirrors the main registration form's CATEGORY_INFO.
+  const QUICK_PAY_CATEGORIES = {
+    solo:   { label: 'Solo',   price: 3999 },
+    double: { label: 'Pairs',  price: 4999 },
+    relay:  { label: 'Relay',  price: 6999 }
+  };
+  const GST_RATE = 18;
+
+  function init() {
+    if (registrationId) {
+      loadRegistrationDetails();
+    } else if (quickCategory && QUICK_PAY_CATEGORIES[quickCategory]) {
+      showQuickPayForm(quickCategory);
+    } else {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('notFoundState').style.display = '';
+      document.getElementById('notFoundState').textContent = 'This payment link is missing required information.';
+    }
+  }
+
+  // ---------- Mode A: pay for an existing registration ----------
+  async function loadRegistrationDetails() {
+    try {
+      const res = await fetch(`/api/registrations/${encodeURIComponent(registrationId)}/pay-details`);
+      if (!res.ok) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('notFoundState').style.display = '';
+        return;
+      }
+      regDetails = await res.json();
+      document.getElementById('loadingState').style.display = 'none';
+
+      if (regDetails.status === 'paid') {
+        document.getElementById('alreadyPaidState').style.display = '';
+        return;
+      }
+
+      document.getElementById('leadName').textContent = regDetails.leadName || '—';
+      document.getElementById('feeCategoryLabel').textContent = (regDetails.categoryLabel || 'Category') + ' entry fee';
+      if (regDetails.teamName) {
+        document.getElementById('teamNameRow').style.display = '';
+        document.getElementById('teamName').textContent = regDetails.teamName;
+      }
+      const base = Number(regDetails.baseAmount != null ? regDetails.baseAmount : regDetails.totalAmount);
+      const gst = Number(regDetails.gstAmount || 0);
+      document.getElementById('baseAmount').textContent = '₹' + base.toLocaleString('en-IN');
+      document.getElementById('gstAmount').textContent = '₹' + gst.toLocaleString('en-IN');
+      document.getElementById('totalAmount').textContent = '₹' + Number(regDetails.totalAmount).toLocaleString('en-IN');
+      document.getElementById('payState').style.display = '';
+    } catch (e) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('notFoundState').style.display = '';
+      document.getElementById('notFoundState').textContent = 'Could not reach the server. Please try again in a moment.';
+    }
+  }
+
+  async function startPaymentForRegistration() {
+    await runPaymentFlow({
+      btn: document.getElementById('payBtn'),
+      msgEl: document.getElementById('statusMsg'),
+      registrationId,
+      amountInRupees: regDetails.totalAmount,
+      categoryLabel: regDetails.categoryLabel,
+      leadName: regDetails.leadName || ''
+    });
+  }
+
+  // ---------- Mode B: fixed-price quick pay ----------
+  function showQuickPayForm(catKey) {
+    const info = QUICK_PAY_CATEGORIES[catKey];
+    const base = info.price;
+    const gst = Math.round(base * GST_RATE / 100);
+    const total = base + gst;
+
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('qpCategoryLabel').textContent = info.label + ' entry fee';
+    document.getElementById('qpBaseAmount').textContent = '₹' + base.toLocaleString('en-IN');
+    document.getElementById('qpGstAmount').textContent = '₹' + gst.toLocaleString('en-IN');
+    document.getElementById('qpTotalAmount').textContent = '₹' + total.toLocaleString('en-IN');
+    document.getElementById('quickPayState').style.display = '';
+  }
+
+  async function startQuickPay() {
+    const btn = document.getElementById('qpPayBtn');
+    const msgEl = document.getElementById('qpStatusMsg');
+    const firstName = document.getElementById('qpFirstName').value.trim();
+    const lastName = document.getElementById('qpLastName').value.trim();
+    const email = document.getElementById('qpEmail').value.trim();
+    const phone = document.getElementById('qpPhone').value.trim();
+
+    if (!firstName || !lastName || !email || !phone) {
+      msgEl.textContent = 'Please fill in all fields before paying.';
+      msgEl.className = 'status-msg error';
+      return;
+    }
+
+    btn.disabled = true;
+    msgEl.textContent = '';
+    msgEl.className = 'status-msg';
+
+    const info = QUICK_PAY_CATEGORIES[quickCategory];
+    const base = info.price;
+    const gst = Math.round(base * GST_RATE / 100);
+    const total = base + gst;
+
+    try {
+      const regRes = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: quickCategory,
+          categoryLabel: info.label,
+          totalMembers: 1,
+          members: [{ firstName, lastName, email, contact: phone }],
+          baseAmount: base,
+          gstAmount: gst,
+          totalAmount: total
+        })
+      });
+      const regData = await regRes.json();
+      if (!regRes.ok || !regData.ok) {
+        msgEl.textContent = regData.error || 'Could not start this payment.';
+        msgEl.className = 'status-msg error';
+        btn.disabled = false;
+        return;
+      }
+
+      await runPaymentFlow({
+        btn,
+        msgEl,
+        registrationId: regData.registrationId,
+        amountInRupees: total,
+        categoryLabel: info.label,
+        leadName: `${firstName} ${lastName}`.trim()
+      });
+    } catch (e) {
+      msgEl.textContent = 'Could not reach the server. Please try again.';
+      msgEl.className = 'status-msg error';
+      btn.disabled = false;
+    }
+  }
+
+  // ---------- Shared: Razorpay order + checkout + verification ----------
+  async function runPaymentFlow({ btn, msgEl, registrationId, amountInRupees, categoryLabel, leadName }) {
+    btn.disabled = true;
+    msgEl.textContent = '';
+    msgEl.className = 'status-msg';
+
+    try {
+      const orderRes = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationId, amountInRupees })
+      });
+      const orderData = await orderRes.json();
+      if (!orderRes.ok || !orderData.ok) {
+        msgEl.textContent = orderData.error || 'Could not start payment.';
+        msgEl.className = 'status-msg error';
+        btn.disabled = false;
+        return;
+      }
+
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: 'Deadly Dozen',
+        description: categoryLabel + ' entry',
+        order_id: orderData.order.id,
+        prefill: { name: leadName || '' },
+        theme: { color: '#a3271f' },
+        handler: async function (response) {
+          try {
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                registrationId,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok && verifyData.ok) {
+              document.getElementById('payState').style.display = 'none';
+              document.getElementById('quickPayState').style.display = 'none';
+              document.getElementById('alreadyPaidState').style.display = '';
+              document.querySelector('.paid-badge').textContent = '✓ Payment Successful';
+            } else {
+              msgEl.textContent = 'Payment received but verification failed. Please contact support, registration ID: ' + registrationId;
+              msgEl.className = 'status-msg error';
+            }
+          } catch (e) {
+            msgEl.textContent = 'Payment received but we could not confirm it. Please contact support, registration ID: ' + registrationId;
+            msgEl.className = 'status-msg error';
+          }
+          btn.disabled = false;
+        },
+        modal: {
+          ondismiss: function () {
+            btn.disabled = false;
+          }
+        }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        msgEl.textContent = 'Payment failed: ' + (response.error && response.error.description ? response.error.description : 'please try again.');
+        msgEl.className = 'status-msg error';
+        btn.disabled = false;
+      });
+      rzp.open();
+    } catch (e) {
+      msgEl.textContent = 'Could not reach the payment server. Please try again.';
+      msgEl.className = 'status-msg error';
+      btn.disabled = false;
+    }
+  }
+
+  init();
+</script>
+
+</body>
+</html>
