@@ -115,6 +115,7 @@
 <body>
 
 <div class="topbar"></div>
+<div id="testModeBanner" style="display:none; background:#a3271f; color:#fff; text-align:center; font-weight:700; letter-spacing:0.5px; padding:8px; font-size:13px;">TEST MODE — total is forced to ₹1, no real amounts are charged</div>
 <div class="card">
   <h1>DEADLY DOZEN</h1>
   <p class="sub">Complete your registration payment</p>
@@ -185,6 +186,15 @@
   const registrationId = params.get('id');
   const quickCategory = params.get('category');
   let regDetails = null;
+
+  // Visit with &ddtest=SKULL1 to force the total to ₹1 for cheap real-payment testing.
+  const TEST_MODE = params.get('ddtest') === 'SKULL1';
+  if (TEST_MODE) {
+    document.addEventListener('DOMContentLoaded', () => {
+      const banner = document.getElementById('testModeBanner');
+      if (banner) banner.style.display = '';
+    });
+  }
 
   // Fixed pricing for quick-pay links — mirrors the main registration form's CATEGORY_INFO.
   const QUICK_PAY_CATEGORIES = {
@@ -273,7 +283,7 @@
     const discountValue = qpDiscountPercent > 0 ? Math.round(entryFee * qpDiscountPercent / 100) : 0;
     const discountedEntryFee = entryFee - discountValue;
     const racePhoto = document.getElementById('qpRacePhoto').checked ? RACE_PHOTO_PRICE : 0;
-    const total = discountedEntryFee + racePhoto;
+    const total = TEST_MODE ? 1 : (discountedEntryFee + racePhoto);
     return { entryFee, discountValue, racePhoto, total };
   }
 
@@ -290,7 +300,7 @@
       discountRow.style.display = 'none';
     }
 
-    document.getElementById('qpTotalAmount').textContent = '₹' + total.toLocaleString('en-IN');
+    document.getElementById('qpTotalAmount').textContent = '₹' + total.toLocaleString('en-IN') + (TEST_MODE ? ' (TEST)' : '');
   }
 
   async function applyQuickPayCoupon() {
@@ -353,7 +363,7 @@
 
     const info = QUICK_PAY_CATEGORIES[quickCategory];
     const { racePhoto, total } = getQuickPayTotals();
-    const categoryLabelFull = info.label + (racePhoto ? ' + Race Photo' : '') + (qpDiscountPercent > 0 ? ` (${qpAppliedCouponCode} -${qpDiscountPercent}%)` : '');
+    const categoryLabelFull = info.label + (racePhoto ? ' + Race Photo' : '') + (qpDiscountPercent > 0 ? ` (${qpAppliedCouponCode} -${qpDiscountPercent}%)` : '') + (TEST_MODE ? ' (TEST)' : '');
 
     try {
       const regRes = await fetch('/api/register', {
