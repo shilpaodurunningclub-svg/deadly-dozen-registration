@@ -462,7 +462,7 @@
     }
     if (search) {
       rows = rows.filter(r => {
-        const hay = [leadMemberName(r), leadMemberContact(r), r.teamName, r.id].join(' ').toLowerCase();
+        const hay = [leadMemberName(r), leadMemberContact(r), r.teamName, r.id, r.registrationCode].join(' ').toLowerCase();
         return hay.includes(search);
       });
     }
@@ -523,7 +523,7 @@
 
     let html = `<table><thead><tr>
       <th><input type="checkbox" ${allVisibleSelected ? 'checked' : ''} onchange="toggleSelectAll(this.checked)"></th>
-      <th>Status</th><th>Category</th><th>Team</th><th>Lead entrant</th><th>Contact</th><th>Members</th><th>Amount</th><th>Registered</th><th>Reg. ID</th><th></th>
+      <th>Status</th><th>Registration Code</th><th>Category</th><th>Team</th><th>Lead entrant</th><th>Contact</th><th>Members</th><th>Amount</th><th>Registered</th><th>Reg. ID</th><th></th>
     </tr></thead><tbody>`;
 
     rows.forEach(r => {
@@ -533,6 +533,7 @@
       html += `<tr>
         <td><input type="checkbox" ${checked} onchange="toggleSelect('${r.id}', this.checked)"></td>
         <td><span class="badge ${r.status}">${statusLabel(r.status)}</span></td>
+        <td style="font-family:monospace; font-size:12px;">${r.registrationCode || '—'}</td>
         <td><span class="cat-badge">${(r.categoryLabel || r.category || '—').toUpperCase()}</span></td>
         <td>${r.teamName || '—'}</td>
         <td>${leadMemberName(r)}</td>
@@ -541,12 +542,24 @@
         <td>${amount}</td>
         <td>${when}</td>
         <td style="font-family:monospace; font-size:12px;">${r.id}</td>
-        <td><button class="row-delete-btn" onclick="deleteOne('${r.id}')">Delete</button></td>
+        <td>
+          ${r.status === 'pending_payment' ? `<button class="row-delete-btn" onclick="copyPayLink('${r.id}')">Copy Pay Link</button>` : ''}
+          <button class="row-delete-btn" onclick="deleteOne('${r.id}')">Delete</button>
+        </td>
       </tr>`;
     });
 
     html += '</tbody></table>';
     wrap.innerHTML = html;
+  }
+
+  function copyPayLink(id) {
+    const link = `${window.location.origin}/pay.html?id=${encodeURIComponent(id)}`;
+    navigator.clipboard.writeText(link).then(() => {
+      alert('Pay link copied to clipboard:\n\n' + link + '\n\nPaste this into an email to the registrant.');
+    }).catch(() => {
+      prompt('Copy this link manually:', link);
+    });
   }
 </script>
 
