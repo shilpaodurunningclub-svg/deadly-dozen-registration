@@ -1018,6 +1018,12 @@
         <div id="couponMsg" style="font-size:13px; margin-top:6px;"></div>
       </div>
 
+      <div class="field">
+        <label class="field-label" for="registrationCodeInput">Registration code *</label>
+        <input type="text" id="registrationCodeInput" form="regForm" placeholder="e.g. JIL14391595" maxlength="11" style="text-transform:uppercase;" pattern="[A-Za-z0-9]{11}" title="Enter exactly 11 letters/numbers" required oninput="this.value = this.value.toUpperCase()">
+        <div id="registrationCodeMsg" style="font-size:12px; color:var(--muted); margin-top:4px;">Must be exactly 11 letters/numbers.</div>
+      </div>
+
       <div class="price-row" id="discountRow" style="display:none; color:var(--red);">
         <span id="discountLabel">Discount</span>
         <span id="discountAmount">-₹0</span>
@@ -1167,6 +1173,7 @@
     const info = CATEGORY_INFO[selectedCategory];
     const { afterDiscount } = getDiscountedBase();
     const gstAmt = TEST_MODE ? 0 : Math.round(afterDiscount * GST_RATE / 100);
+    const regCodeEl = document.getElementById('registrationCodeInput');
     const payload = {
       category: selectedCategory,
       categoryLabel: info.label + ' — ' + selectedGender + (TEST_MODE ? ' (TEST)' : ''),
@@ -1178,7 +1185,8 @@
       gstAmount: gstAmt,
       totalAmount: afterDiscount + gstAmt,
       eventDate: `${info.date}, ${info.time}`,
-      couponCode: appliedCouponCode || undefined
+      couponCode: appliedCouponCode || undefined,
+      registrationCode: regCodeEl ? regCodeEl.value.trim().toUpperCase() : undefined
     };
     try {
       const res = await fetch(`${API_BASE}/api/register`, {
