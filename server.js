@@ -45,7 +45,8 @@ async function ensureSchema() {
       razorpay_payment_id TEXT,
       razorpay_signature TEXT,
       payment_method TEXT,
-      paid_at TIMESTAMPTZ
+      paid_at TIMESTAMPTZ,
+      registration_code TEXT
     );
 
     CREATE TABLE IF NOT EXISTS coupons (
@@ -61,6 +62,12 @@ async function ensureSchema() {
       active BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `);
+
+  // Safe to run every startup — adds the column only if it isn't already there,
+  // for the case where the registrations table already existed before this field was introduced.
+  await pool.query(`
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS registration_code TEXT;
   `);
 
   // One-time migration of the single test registration that existed in the old
@@ -104,7 +111,8 @@ function mapRegistrationRow(row) {
     razorpayPaymentId: row.razorpay_payment_id,
     razorpaySignature: row.razorpay_signature,
     paymentMethod: row.payment_method,
-    paidAt: row.paid_at
+    paidAt: row.paid_at,
+    registrationCode: row.registration_code
   };
 }
 
@@ -305,6 +313,11 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields (category, totalAmount, members[]).' });
   }
 
+  const registrationCode = (payload.registrationCode || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{11}$/.test(registrationCode)) {
+    return res.status(400).json({ error: 'Registration code must be exactly 11 letters/numbers.' });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -325,8 +338,8 @@ app.post('/api/register', async (req, res) => {
     const { rows } = await client.query(
       `INSERT INTO registrations (
         id, category, category_label, gender_category, team_name, total_members,
-        members, base_amount, gst_amount, total_amount, coupon, event_date
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        members, base_amount, gst_amount, total_amount, coupon, event_date, registration_code
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *`,
       [
         id,
@@ -340,7 +353,8 @@ app.post('/api/register', async (req, res) => {
         payload.gstAmount || null,
         payload.totalAmount,
         appliedCoupon ? JSON.stringify(appliedCoupon) : null,
-        payload.eventDate || null
+        payload.eventDate || null,
+        registrationCode
       ]
     );
 
@@ -481,6 +495,35 @@ app.get('/api/registrations', requireAdmin, async (req, res) => {
   }
 });
 
+// ---------- Get minimal public details for the standalone payment page ----------
+// No admin key required — the registration ID itself (long, random) acts as the access
+// token, same pattern as most payment-link systems. Only exposes what's needed to pay:
+// no email, phone, DOB, address, etc.
+app.get('/api/registrations/:id/pay-details', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Registration not found.' });
+
+    const r = mapRegistrationRow(rows[0]);
+    const lead = (r.members || [])[0] || {};
+
+    res.json({
+      id: r.id,
+      status: r.status,
+      categoryLabel: r.categoryLabel,
+      teamName: r.teamName,
+      totalMembers: r.totalMembers,
+      baseAmount: r.baseAmount,
+      gstAmount: r.gstAmount,
+      totalAmount: r.totalAmount,
+      leadName: [lead.firstName, lead.lastName].filter(Boolean).join(' ') || null
+    });
+  } catch (err) {
+    console.error('pay-details failed:', err);
+    res.status(500).json({ error: 'Server error loading registration.' });
+  }
+});
+
 // ---------- Get one registration (admin only) ----------
 app.get('/api/registrations/:id', requireAdmin, async (req, res) => {
   try {
@@ -535,7 +578,7 @@ app.get('/api/registrations/export.csv', requireAdmin, async (req, res) => {
     const list = rows.map(mapRegistrationRow);
 
     const headers = [
-      'Registration ID', 'Status', 'Category', 'Gender', 'Team Name',
+      'Registration ID', 'Status', 'Registration Code', 'Category', 'Gender', 'Team Name',
       'Lead First Name', 'Lead Last Name', 'Lead Email', 'Lead Contact',
       'Members Count', 'Base Amount', 'GST Amount', 'Total Amount',
       'Coupon Code', 'Coupon %', 'Event Date', 'Registered At', 'Paid At', 'Razorpay Payment ID'
@@ -546,7 +589,7 @@ app.get('/api/registrations/export.csv', requireAdmin, async (req, res) => {
     list.forEach(r => {
       const lead = (r.members || [])[0] || {};
       lines.push([
-        r.id, r.status, r.categoryLabel || r.category, r.genderCategory, r.teamName,
+        r.id, r.status, r.registrationCode, r.categoryLabel || r.category, r.genderCategory, r.teamName,
         lead.firstName, lead.lastName, lead.email, lead.contact,
         r.totalMembers, r.baseAmount, r.gstAmount, r.totalAmount,
         r.coupon ? r.coupon.code : '', r.coupon ? r.coupon.percentage : '',
