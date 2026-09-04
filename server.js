@@ -181,7 +181,7 @@ async function sendConfirmationEmail(record) {
   const amountPaid = typeof record.totalAmount === 'number' ? record.totalAmount.toLocaleString('en-IN') : 'N/A';
   const primaryName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Racer';
   const eventName = 'Deadly Dozen';
-  const eventDate = record.eventDate || 'To be confirmed';
+  const eventDate = record.eventDate || '28th Nov 2026';
   const eventVenue = process.env.EVENT_VENUE || 'To be announced';
   const category = record.categoryLabel || record.category;
   const txnId = record.razorpayPaymentId || 'N/A';
@@ -202,9 +202,9 @@ Category: ${category}
 Amount Paid: ₹${amountPaid}
 Transaction ID: ${txnId}
 
-Your spot is confirmed. You'll receive details about kit collection, race timings, and reporting time closer to the event.
+Further details about the start wave, Venue maps and others will be conveyed to you on your registered email closer to the race date
 
-In the meantime, keep training and get ready to run!
+Get ready to race
 
 See you at the start line,
 Deadly Dozen India`;
@@ -222,8 +222,8 @@ Deadly Dozen India`;
       <tr><td style="padding:4px 0;"><strong>Amount Paid:</strong></td><td>₹${amountPaid}</td></tr>
       <tr><td style="padding:4px 0;"><strong>Transaction ID:</strong></td><td>${txnId}</td></tr>
     </table>
-    <p>Your spot is confirmed. You'll receive details about kit collection, race timings, and reporting time closer to the event.</p>
-    <p>In the meantime, keep training and get ready to run!</p>
+    <p>Further details about the start wave, Venue maps and others will be conveyed to you on your registered email closer to the race date</p>
+    <p>Get ready to race</p>
     <p>See you at the start line,<br><strong>Deadly Dozen India</strong></p>
   </div>`;
 
