@@ -174,8 +174,8 @@
 
     <div class="field"><label for="qpFirstName">First name *</label><input type="text" id="qpFirstName"></div>
     <div class="field"><label for="qpLastName">Last name *</label><input type="text" id="qpLastName"></div>
-    <div class="field"><label for="qpEmail">Email address *</label><input type="email" id="qpEmail"></div>
-    <div class="field"><label for="qpPhone">Contact number *</label><input type="tel" id="qpPhone"></div>
+    <div class="field"><label for="qpEmail">Email address *</label><input type="email" id="qpEmail" placeholder="name@example.com"></div>
+    <div class="field"><label for="qpPhone">Contact number *</label><input type="tel" id="qpPhone" maxlength="10" placeholder="10-digit mobile number" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,10)"></div>
 
     <button class="pay-btn" id="qpPayBtn" onclick="startQuickPay()">PAY NOW</button>
     <div class="status-msg" id="qpStatusMsg"></div>
@@ -366,6 +366,18 @@
 
     if (!/^[A-Z0-9]{11}$/.test(registrationCode)) {
       msgEl.textContent = 'Registration code must be exactly 11 letters/numbers.';
+      msgEl.className = 'status-msg error';
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      msgEl.textContent = 'Please enter a valid email address (must include @).';
+      msgEl.className = 'status-msg error';
+      return;
+    }
+
+    if (!/^[0-9]{10}$/.test(phone)) {
+      msgEl.textContent = 'Contact number must be exactly 10 digits.';
       msgEl.className = 'status-msg error';
       return;
     }
