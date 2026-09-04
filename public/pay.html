@@ -147,8 +147,9 @@
       <div class="field" style="margin-bottom:0;">
         <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; color:var(--ink);">
           <input type="checkbox" id="qpRacePhoto" onchange="updateQuickPayTotal()" style="width:16px; height:16px;">
-          Race Photography: ₹1,500 with registration | ₹3,000 if purchased post-event
+          Add a Race Photo bundle with your ticket for just ₹1,500
         </label>
+        <p style="font-size:11px; color:var(--muted); margin:4px 0 0 24px;">Note - Post race photo price ₹3,000</p>
       </div>
 
       <div class="detail-row" id="qpDiscountRow" style="display:none; color:var(--red);">
@@ -169,7 +170,7 @@
     <div class="field">
       <label for="qpRegistrationCode">Registration code *</label>
       <input type="text" id="qpRegistrationCode" placeholder="e.g. JIL14391595" maxlength="11" style="text-transform:uppercase;" oninput="this.value = this.value.toUpperCase()">
-      <p style="font-size:11px; color:var(--muted); margin:4px 0 0;">Must be exactly 11 letters/numbers.</p>
+      <p style="font-size:11px; color:var(--muted); margin:4px 0 0;">Enter the 11 digit Registration code received on your mail.</p>
     </div>
 
     <div class="field"><label for="qpFirstName">First name *</label><input type="text" id="qpFirstName"></div>
