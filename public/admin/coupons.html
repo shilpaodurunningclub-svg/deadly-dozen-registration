@@ -224,7 +224,7 @@
           <div class="category-check-row">
             <label><input type="checkbox" value="all" onclick="handleAllCheckbox(this)"> All categories</label>
             <label><input type="checkbox" class="cat-specific" value="solo"> Solo</label>
-            <label><input type="checkbox" class="cat-specific" value="double"> Double</label>
+            <label><input type="checkbox" class="cat-specific" value="double"> Pairs</label>
             <label><input type="checkbox" class="cat-specific" value="relay"> Relay</label>
           </div>
         </div>
@@ -395,8 +395,10 @@
       <th>Code</th><th>%</th><th>Categories</th><th>Assigned To</th><th>Uses</th><th>Status</th><th>Created</th><th></th>
     </tr></thead><tbody>`;
 
+    const CATEGORY_DISPLAY_LABELS = { solo: 'Solo', double: 'Pairs', relay: 'Relay' };
+
     rows.forEach(c => {
-      const cats = c.categories.includes('all') ? 'All' : c.categories.map(x => x[0].toUpperCase() + x.slice(1)).join(', ');
+      const cats = c.categories.includes('all') ? 'All' : c.categories.map(x => CATEGORY_DISPLAY_LABELS[x] || (x[0].toUpperCase() + x.slice(1))).join(', ');
       const assigned = [c.assignedName, c.assignedPhone, c.assignedEmail].filter(Boolean).join(' · ') || '—';
       const when = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN') : '—';
 
