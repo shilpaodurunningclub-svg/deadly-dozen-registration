@@ -192,7 +192,7 @@
   const params = new URLSearchParams(window.location.search);
   const registrationId = params.get('id');
   const CATEGORY_URL_ALIASES = { pairs: 'double' }; // public-facing "pairs" maps to the internal "double" category
-  const rawCategoryParam = params.get('category');
+  const rawCategoryParam = (params.get('category') || '').toLowerCase();
   const quickCategory = CATEGORY_URL_ALIASES[rawCategoryParam] || rawCategoryParam;
   let regDetails = null;
 
