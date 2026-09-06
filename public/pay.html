@@ -138,7 +138,7 @@
     <div class="status-msg" id="statusMsg"></div>
   </div>
 
-  <!-- Mode B: fixed-price quick pay, identified by ?category=solo|double|relay -->
+  <!-- Mode B: fixed-price quick pay, identified by ?category=solo|double|relay (displayed as "Pairs") -->
   <div id="quickPayState" style="display:none;">
     <div class="detail-box">
       <div class="detail-row"><span id="qpCategoryLabel">Category</span><span id="qpBaseAmount">—</span></div>
@@ -191,7 +191,9 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const registrationId = params.get('id');
-  const quickCategory = params.get('category');
+  const CATEGORY_URL_ALIASES = { pairs: 'double' }; // public-facing "pairs" maps to the internal "double" category
+  const rawCategoryParam = params.get('category');
+  const quickCategory = CATEGORY_URL_ALIASES[rawCategoryParam] || rawCategoryParam;
   let regDetails = null;
 
   // Visit with &ddtest=SKULL1 to force the total to ₹1 for cheap real-payment testing.
