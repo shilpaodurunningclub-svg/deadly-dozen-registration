@@ -524,46 +524,9 @@ app.get('/api/registrations/:id/pay-details', async (req, res) => {
   }
 });
 
-// ---------- Get one registration (admin only) ----------
-app.get('/api/registrations/:id', requireAdmin, async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM registrations WHERE id = $1', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(mapRegistrationRow(rows[0]));
-  } catch (err) {
-    console.error('get registration failed:', err);
-    res.status(500).json({ error: 'Server error loading registration.' });
-  }
-});
-
-// ---------- Status + category summary counts (admin only) ----------
-app.get('/api/registrations-summary', requireAdmin, async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM registrations');
-    const list = rows.map(mapRegistrationRow);
-    const summary = {
-      total: list.length,
-      paid: 0,
-      pending_payment: 0,
-      payment_verification_failed: 0,
-      byCategory: { solo: 0, double: 0, relay: 0 },
-      participantsByCategory: { solo: 0, double: 0, relay: 0 }
-    };
-    list.forEach(r => {
-      if (summary[r.status] !== undefined) summary[r.status]++;
-      if (summary.byCategory[r.category] !== undefined) {
-        summary.byCategory[r.category]++;
-        summary.participantsByCategory[r.category] += (r.totalMembers || (r.members || []).length || 0);
-      }
-    });
-    res.json(summary);
-  } catch (err) {
-    console.error('summary failed:', err);
-    res.status(500).json({ error: 'Server error computing summary.' });
-  }
-});
-
 // ---------- Export all registrations as CSV (admin only) ----------
+// This MUST be registered before '/api/registrations/:id' — otherwise Express
+// matches "export.csv" as the :id parameter and this route is never reached.
 function csvEscape(value) {
   const str = value === null || value === undefined ? '' : String(value);
   if (/[",\n]/.test(str)) {
@@ -604,6 +567,45 @@ app.get('/api/registrations/export.csv', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('CSV export failed:', err);
     res.status(500).json({ error: 'Server error generating CSV.' });
+  }
+});
+
+// ---------- Get one registration (admin only) ----------
+app.get('/api/registrations/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(mapRegistrationRow(rows[0]));
+  } catch (err) {
+    console.error('get registration failed:', err);
+    res.status(500).json({ error: 'Server error loading registration.' });
+  }
+});
+
+// ---------- Status + category summary counts (admin only) ----------
+app.get('/api/registrations-summary', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations');
+    const list = rows.map(mapRegistrationRow);
+    const summary = {
+      total: list.length,
+      paid: 0,
+      pending_payment: 0,
+      payment_verification_failed: 0,
+      byCategory: { solo: 0, double: 0, relay: 0 },
+      participantsByCategory: { solo: 0, double: 0, relay: 0 }
+    };
+    list.forEach(r => {
+      if (summary[r.status] !== undefined) summary[r.status]++;
+      if (summary.byCategory[r.category] !== undefined) {
+        summary.byCategory[r.category]++;
+        summary.participantsByCategory[r.category] += (r.totalMembers || (r.members || []).length || 0);
+      }
+    });
+    res.json(summary);
+  } catch (err) {
+    console.error('summary failed:', err);
+    res.status(500).json({ error: 'Server error computing summary.' });
   }
 });
 
