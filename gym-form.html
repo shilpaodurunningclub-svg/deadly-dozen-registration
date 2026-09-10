@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadly Dozen — Gym Partner Information</title>
+<style>
+  :root {
+    --red: #a3271f;
+    --red-dark: #7f1e18;
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --border: #d9d9d9;
+    --card: #f6f5f4;
+    --page: #e9e7e5;
+    --green: #1a7a3a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  .topbar { height: 6px; background: var(--red); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { color: var(--red); letter-spacing: 0.5px; font-size: 26px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 28px; }
+
+  fieldset {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px 22px;
+    margin: 0 0 22px;
+  }
+  legend {
+    padding: 0 8px;
+    font-weight: 700;
+    color: var(--red);
+    font-size: 15px;
+  }
+
+  .field { margin-bottom: 16px; }
+  label.field-label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  input[type="text"], input[type="tel"], textarea, select {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+  }
+  textarea { resize: vertical; min-height: 70px; }
+
+  .radio-row, .check-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 4px;
+  }
+  .radio-row label, .check-row label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 20px;
+  }
+  .radio-row input, .check-row input { width: 15px; height: 15px; accent-color: var(--red); }
+
+  .other-input { margin-top: 8px; max-width: 320px; }
+
+  table.weights-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  table.weights-table th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+    padding: 8px 10px;
+    background: #f0eeec;
+    border-bottom: 1px solid var(--border);
+  }
+  table.weights-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.weights-table td input, table.weights-table td select {
+    padding: 7px 8px;
+    font-size: 13px;
+  }
+  .row-remove-btn {
+    background: none;
+    border: none;
+    color: var(--red);
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .add-row-btn {
+    margin-top: 10px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--red);
+    background: #fff;
+    color: var(--red);
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .add-row-btn:hover { background: #fbe4e2; }
+
+  .submit-btn {
+    width: 100%;
+    padding: 15px;
+    background: var(--red);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .submit-btn:hover { background: var(--red-dark); }
+  .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  #formMsg { font-size: 14px; margin-top: 14px; text-align: center; min-height: 18px; }
+  #formMsg.error { color: var(--red); }
+  #formMsg.success { color: var(--green); font-weight: 600; }
+
+  #successState { display: none; text-align: center; padding: 40px 20px; }
+  #successState .check { font-size: 44px; color: var(--green); margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+<div class="wrap">
+
+  <div id="formView">
+    <h1>DEADLY DOZEN — Gym Partner Information</h1>
+    <p class="sub">Tell us about your gym so we can explore how we can work together. Fields marked * are required.</p>
+
+    <form id="gymForm" onsubmit="return handleSubmit(event)">
+
+      <fieldset>
+        <legend>Gym Details</legend>
+        <div class="field">
+          <label class="field-label" for="gymName">Gym name *</label>
+          <input type="text" id="gymName" required>
+        </div>
+        <div class="field">
+          <label class="field-label" for="gymAddress">Address *</label>
+          <textarea id="gymAddress" required></textarea>
+        </div>
+        <div class="field">
+          <label class="field-label" for="gymPhone">Phone number *</label>
+          <input type="tel" id="gymPhone" maxlength="10" inputmode="numeric" placeholder="10-digit phone number" required oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,10)">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Type *</legend>
+        <div class="radio-row">
+          <label><input type="radio" name="gymType" value="Owned" onclick="toggleOther('gymType', 'gymTypeOtherWrap')"> Owned</label>
+          <label><input type="radio" name="gymType" value="Franchise" onclick="toggleOther('gymType', 'gymTypeOtherWrap')"> Franchise</label>
+          <label><input type="radio" name="gymType" value="Other" onclick="toggleOther('gymType', 'gymTypeOtherWrap')"> Other</label>
+        </div>
+        <div class="other-input" id="gymTypeOtherWrap" style="display:none;">
+          <input type="text" id="gymTypeOther" placeholder="Please specify">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Specialised (select all that apply)</legend>
+        <div class="check-row">
+          <label><input type="checkbox" name="specialisation" value="Hyrox"> Hyrox</label>
+          <label><input type="checkbox" name="specialisation" value="CrossFit"> CrossFit</label>
+          <label><input type="checkbox" name="specialisation" value="Other" onclick="toggleCheckboxOther(this, 'specialisationOtherWrap')"> Other</label>
+        </div>
+        <div class="other-input" id="specialisationOtherWrap" style="display:none;">
+          <input type="text" id="specialisationOther" placeholder="Please specify">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Deadly Dozen Association (select all that apply)</legend>
+        <div class="check-row">
+          <label><input type="checkbox" name="ddAssoc" value="Affiliated"> Affiliated</label>
+          <label><input type="checkbox" name="ddAssoc" value="Partner"> Partner</label>
+          <label><input type="checkbox" name="ddAssoc" value="Other" onclick="toggleCheckboxOther(this, 'ddAssocOtherWrap')"> Other</label>
+        </div>
+        <div class="other-input" id="ddAssocOtherWrap" style="display:none;">
+          <input type="text" id="ddAssocOther" placeholder="Please specify">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Deadly Dozen Track Host (select all that apply)</legend>
+        <div class="check-row">
+          <label><input type="checkbox" name="ddTrackHost" value="Workshop"> Workshop</label>
+          <label><input type="checkbox" name="ddTrackHost" value="Simulation"> Simulation</label>
+          <label><input type="checkbox" name="ddTrackHost" value="Mini Challenge"> Mini Challenge</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Weights / Equipment Available</legend>
+        <table class="weights-table" id="weightsTable">
+          <thead>
+            <tr>
+              <th style="width:32%;">Equipment</th>
+              <th style="width:24%;">Weight (kg)</th>
+              <th style="width:24%;">Quantity</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="weightsTableBody"></tbody>
+        </table>
+        <button type="button" class="add-row-btn" onclick="addWeightRow()">+ Add row</button>
+      </fieldset>
+
+      <button type="submit" class="submit-btn" id="submitBtn">SUBMIT GYM INFORMATION</button>
+      <div id="formMsg"></div>
+    </form>
+  </div>
+
+  <div id="successState">
+    <div class="check">✓</div>
+    <h1>Thank you!</h1>
+    <p style="color:var(--muted);">Your gym information has been submitted. Our team will be in touch.</p>
+  </div>
+
+</div>
+
+<script>
+  const EQUIPMENT_OPTIONS = ['Kettlebell', 'Dumbbell', 'Weight Plate', 'Barbell', 'Other'];
+  let weightRowCount = 0;
+
+  function toggleOther(radioName, wrapId) {
+    const selected = document.querySelector(`input[name="${radioName}"]:checked`);
+    document.getElementById(wrapId).style.display = (selected && selected.value === 'Other') ? '' : 'none';
+  }
+
+  function toggleCheckboxOther(checkbox, wrapId) {
+    document.getElementById(wrapId).style.display = checkbox.checked ? '' : 'none';
+  }
+
+  function addWeightRow() {
+    weightRowCount++;
+    const tbody = document.getElementById('weightsTableBody');
+    const tr = document.createElement('tr');
+    tr.id = 'weightRow' + weightRowCount;
+    tr.innerHTML = `
+      <td>
+        <select class="w-equipment">
+          ${EQUIPMENT_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" class="w-weight" inputmode="decimal" placeholder="e.g. 16"></td>
+      <td><input type="text" class="w-qty" inputmode="numeric" placeholder="e.g. 4"></td>
+      <td><button type="button" class="row-remove-btn" onclick="document.getElementById('weightRow${weightRowCount}').remove()">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // Start with a couple of blank rows so the table doesn't look empty
+  addWeightRow();
+  addWeightRow();
+
+  function collectWeights() {
+    const rows = document.querySelectorAll('#weightsTableBody tr');
+    const weights = [];
+    rows.forEach(row => {
+      const equipment = row.querySelector('.w-equipment').value;
+      const weightKg = row.querySelector('.w-weight').value.trim();
+      const quantity = row.querySelector('.w-qty').value.trim();
+      if (weightKg || quantity) {
+        weights.push({ equipment, weightKg, quantity });
+      }
+    });
+    return weights;
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const msgEl = document.getElementById('formMsg');
+    msgEl.textContent = '';
+    msgEl.className = '';
+
+    const name = document.getElementById('gymName').value.trim();
+    const address = document.getElementById('gymAddress').value.trim();
+    const phone = document.getElementById('gymPhone').value.trim();
+    const gymTypeEl = document.querySelector('input[name="gymType"]:checked');
+    const gymType = gymTypeEl ? gymTypeEl.value : '';
+    const gymTypeOther = document.getElementById('gymTypeOther').value.trim();
+
+    if (!name || !address || !phone || !gymType) {
+      msgEl.textContent = 'Please fill in all required fields.';
+      msgEl.className = 'error';
+      return;
+    }
+    if (!/^[0-9]{10}$/.test(phone)) {
+      msgEl.textContent = 'Phone number must be exactly 10 digits.';
+      msgEl.className = 'error';
+      return;
+    }
+
+    const specialisation = Array.from(document.querySelectorAll('input[name="specialisation"]:checked')).map(el => el.value);
+    const specialisationOther = document.getElementById('specialisationOther').value.trim();
+    const deadlyDozenAssociation = Array.from(document.querySelectorAll('input[name="ddAssoc"]:checked')).map(el => el.value);
+    const deadlyDozenAssociationOther = document.getElementById('ddAssocOther').value.trim();
+    const deadlyDozenTrackHost = Array.from(document.querySelectorAll('input[name="ddTrackHost"]:checked')).map(el => el.value);
+    const weights = collectWeights();
+
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/gyms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name, address, phone, gymType, gymTypeOther,
+          specialisation, specialisationOther,
+          deadlyDozenAssociation, deadlyDozenAssociationOther, deadlyDozenTrackHost, weights
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        msgEl.textContent = data.error || 'Could not submit. Please try again.';
+        msgEl.className = 'error';
+        btn.disabled = false;
+        return;
+      }
+      document.getElementById('formView').style.display = 'none';
+      document.getElementById('successState').style.display = '';
+    } catch (err) {
+      msgEl.textContent = 'Could not reach the server. Please try again.';
+      msgEl.className = 'error';
+      btn.disabled = false;
+    }
+    return false;
+  }
+</script>
+
+</body>
+</html>
