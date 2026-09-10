@@ -544,6 +544,7 @@
         <td style="font-family:monospace; font-size:12px;">${r.id}</td>
         <td>
           ${r.status === 'pending_payment' ? `<button class="row-delete-btn" onclick="copyPayLink('${r.id}')">Copy Pay Link</button>` : ''}
+          ${r.status === 'pending_payment' ? `<button class="row-delete-btn" onclick="markPaid('${r.id}')">Mark Paid</button>` : ''}
           <button class="row-delete-btn" onclick="deleteOne('${r.id}')">Delete</button>
         </td>
       </tr>`;
@@ -560,6 +561,29 @@
     }).catch(() => {
       prompt('Copy this link manually:', link);
     });
+  }
+
+  async function markPaid(id) {
+    const paymentId = prompt('Optional: paste the Razorpay Payment ID (e.g. pay_...) to attach it to this record. Leave blank to skip.', '');
+    if (paymentId === null) return; // cancelled
+    if (!confirm('Mark this registration as PAID? This will also send the confirmation email.')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/registrations/${encodeURIComponent(id)}/mark-paid`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ razorpayPaymentId: paymentId || undefined })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        alert('Could not mark as paid: ' + (data.error || 'unknown error'));
+        return;
+      }
+      alert('Marked as paid and confirmation email sent.');
+      loadData();
+    } catch (e) {
+      alert('Could not reach the server.');
+    }
   }
 </script>
 

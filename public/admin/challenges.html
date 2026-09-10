@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadly Dozen — Challenge Designer</title>
+<style>
+  :root {
+    --red: #a3271f;
+    --red-dark: #7f1e18;
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --border: #d9d9d9;
+    --card: #f6f5f4;
+    --page: #e9e7e5;
+    --green: #1a7a3a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  .topbar { height: 6px; background: var(--red); }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { color: var(--red); letter-spacing: 0.5px; font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+
+  #loginGate {
+    max-width: 420px;
+    margin: 80px auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+  }
+  #loginGate h2 { margin-top: 0; font-size: 18px; color: var(--red); }
+  #loginGate input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  #loginGate button {
+    width: 100%;
+    padding: 12px;
+    background: var(--red);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 15px;
+  }
+  #loginError { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+  fieldset {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px 22px;
+    margin: 0 0 18px;
+  }
+  legend { padding: 0 8px; font-weight: 700; color: var(--red); font-size: 14px; }
+
+  .field { margin-bottom: 14px; }
+  label.field-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+  input[type="text"], input[type="tel"], input[type="number"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .radio-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+  .radio-row label {
+    display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;
+    background: #fff; border: 1px solid var(--border); padding: 8px 14px; border-radius: 20px;
+  }
+  .radio-row input { width: 15px; height: 15px; accent-color: var(--red); }
+
+  table.stations-table { width: 100%; border-collapse: collapse; margin-top: 8px; background: #fff; border-radius: 6px; overflow: hidden; }
+  table.stations-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+    color: var(--muted); padding: 8px 8px; background: #f0eeec; border-bottom: 1px solid var(--border);
+  }
+  table.stations-table td { padding: 6px 6px; border-bottom: 1px solid var(--border); }
+  table.stations-table td input, table.stations-table td select { padding: 7px 8px; font-size: 13px; }
+  .row-remove-btn { background: none; border: none; color: var(--red); font-weight: 700; cursor: pointer; font-size: 16px; }
+  .add-row-btn {
+    margin-top: 10px; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--red);
+    background: #fff; color: var(--red); font-weight: 700; cursor: pointer; font-size: 13px;
+  }
+  .add-row-btn:hover { background: #fbe4e2; }
+
+  .btn-row { display: flex; gap: 10px; align-items: center; }
+  .save-btn, .cancel-btn {
+    padding: 12px 26px; border-radius: 6px; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .save-btn { background: var(--red); color: #fff; border: none; }
+  .save-btn:hover { background: var(--red-dark); }
+  .cancel-btn { background: #fff; border: 1px solid var(--border); color: var(--ink); display: none; }
+
+  #formMsg { font-size: 13px; margin-top: 10px; }
+  #formMsg.error { color: var(--red); }
+  #formMsg.success { color: var(--green); }
+
+  .list-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .list-card h2 { margin: 0 0 14px; font-size: 16px; color: var(--red); display: inline-block; }
+  .refresh-btn {
+    padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: #fff;
+    cursor: pointer; font-size: 13px; font-weight: 600; float: right;
+  }
+  table.designs-table { width: 100%; border-collapse: collapse; }
+  table.designs-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+    color: var(--muted); padding: 8px 10px; background: #f0eeec; border-bottom: 1px solid var(--border);
+  }
+  table.designs-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; background: #f6e3e1; color: var(--red); }
+  .row-btn {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: #fff;
+    cursor: pointer; font-size: 12px; font-weight: 700; margin-right: 4px;
+  }
+  .row-btn:hover { background: #f2f2f2; }
+  .row-btn.danger { color: var(--red); }
+  .row-btn.danger:hover { background: #fbe4e2; }
+  .empty-state { text-align: center; padding: 30px 20px; color: var(--muted); }
+
+  /* Print sheet, hidden on screen, shown only when printing */
+  #printSheet { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    #printSheet, #printSheet * { visibility: visible; }
+    #printSheet { display: block; position: absolute; top: 0; left: 0; width: 100%; padding: 20px; }
+  }
+  #printSheet h2 { color: #a3271f; margin-bottom: 4px; }
+  #printSheet .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; margin: 14px 0; font-size: 14px; }
+  #printSheet .meta-grid div span { color: #6b6b6b; }
+  #printSheet table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  #printSheet th, #printSheet td { border: 1px solid #ccc; padding: 8px; font-size: 13px; text-align: left; }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+<div class="wrap">
+
+  <div id="loginGate">
+    <h2>DEADLY DOZEN — Challenge Designer</h2>
+    <p style="font-size:13px; color:var(--muted);">Enter the admin key to design Simulations and Mini Challenges.</p>
+    <input type="password" id="adminKeyInput" placeholder="Admin key" onkeydown="if(event.key==='Enter') login()">
+    <button onclick="login()">Continue</button>
+    <div id="loginError"></div>
+  </div>
+
+  <div id="mainView" style="display:none;">
+    <h1>Challenge Designer</h1>
+    <p class="sub">Design a Simulation or Mini Challenge for a Gym, Deadly Dozen event, or Run Club.</p>
+
+    <form id="challengeForm" onsubmit="return handleSubmit(event)">
+      <fieldset>
+        <legend>Design Type *</legend>
+        <div class="radio-row">
+          <label><input type="radio" name="designType" value="Simulation" required> Simulation</label>
+          <label><input type="radio" name="designType" value="Mini Challenge" required> Mini Challenge</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>This is for *</legend>
+        <div class="radio-row">
+          <label><input type="radio" name="organizerType" value="Gym" required> Gym</label>
+          <label><input type="radio" name="organizerType" value="DD" required> DD</label>
+          <label><input type="radio" name="organizerType" value="Run Club" required> Run Club</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Organizer Details</legend>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field-label" for="organizerName">Name *</label>
+            <input type="text" id="organizerName" required>
+          </div>
+          <div class="field">
+            <label class="field-label" for="area">Area</label>
+            <input type="text" id="area">
+          </div>
+          <div class="field">
+            <label class="field-label" for="pincode">Pincode</label>
+            <input type="text" id="pincode" maxlength="6" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,6)">
+          </div>
+          <div class="field">
+            <label class="field-label" for="inchargeName">Incharge Name</label>
+            <input type="text" id="inchargeName">
+          </div>
+          <div class="field">
+            <label class="field-label" for="inchargeNumber">Incharge Number</label>
+            <input type="tel" id="inchargeNumber" maxlength="10" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
+          </div>
+          <div class="field">
+            <label class="field-label" for="venue">Place where it's conducted</label>
+            <input type="text" id="venue">
+          </div>
+          <div class="field">
+            <label class="field-label" for="areaSize">How big is the area (e.g. 40x60 m, or sq.ft)</label>
+            <input type="text" id="areaSize">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Run & Rounds</legend>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field-label" for="runDistanceM">Run distance between stations (meters)</label>
+            <input type="number" id="runDistanceM" min="0">
+          </div>
+          <div class="field">
+            <label class="field-label" for="rounds">Number of rounds</label>
+            <input type="number" id="rounds" min="0">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Labour Stations</legend>
+        <table class="stations-table" id="stationsTable">
+          <thead>
+            <tr>
+              <th style="width:8%;">#</th>
+              <th style="width:28%;">Labour (exercise)</th>
+              <th style="width:18%;">Equipment</th>
+              <th style="width:14%;">Weight (kg)</th>
+              <th style="width:24%;">Reps / Distance</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="stationsTableBody"></tbody>
+        </table>
+        <button type="button" class="add-row-btn" onclick="addStationRow()">+ Add station</button>
+      </fieldset>
+
+      <div class="btn-row">
+        <button type="submit" class="save-btn" id="saveBtn">CREATE DESIGN</button>
+        <button type="button" class="cancel-btn" id="cancelEditBtn" onclick="cancelEdit()">Cancel edit</button>
+      </div>
+      <div id="formMsg"></div>
+    </form>
+
+    <div class="list-card" style="margin-top:28px;">
+      <h2>Saved Designs</h2>
+      <button class="refresh-btn" onclick="loadDesigns()">↻ Refresh</button>
+      <div id="listWrap" style="clear:both; padding-top:10px;"></div>
+    </div>
+  </div>
+
+  <div id="printSheet"></div>
+</div>
+
+<script>
+  const API_BASE = '';
+  let adminKey = '';
+  let allDesigns = [];
+  let editingId = null;
+  let stationRowCount = 0;
+  const EQUIPMENT_OPTIONS = ['Kettlebell', 'Dumbbell', 'Weight Plate', 'Barbell', 'Body Weight', 'Other'];
+
+  function login() {
+    adminKey = document.getElementById('adminKeyInput').value.trim();
+    if (!adminKey) return;
+    loadDesigns();
+  }
+
+  function addStationRow(data) {
+    stationRowCount++;
+    const tbody = document.getElementById('stationsTableBody');
+    const tr = document.createElement('tr');
+    tr.id = 'stationRow' + stationRowCount;
+    const idx = tbody.children.length + 1;
+    tr.innerHTML = `
+      <td>${idx}</td>
+      <td><input type="text" class="s-name" placeholder="e.g. Farmers Carry" value="${data ? (data.name || '') : ''}"></td>
+      <td>
+        <select class="s-equipment">
+          ${EQUIPMENT_OPTIONS.map(o => `<option value="${o}" ${data && data.equipment === o ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" class="s-weight" inputmode="decimal" placeholder="e.g. 24" value="${data ? (data.weightKg || '') : ''}"></td>
+      <td><input type="text" class="s-reps" placeholder="e.g. 60 reps / 240m" value="${data ? (data.reps || '') : ''}"></td>
+      <td><button type="button" class="row-remove-btn" onclick="document.getElementById('stationRow${stationRowCount}').remove(); renumberStations();">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function renumberStations() {
+    const rows = document.querySelectorAll('#stationsTableBody tr');
+    rows.forEach((row, i) => { row.children[0].textContent = i + 1; });
+  }
+
+  function collectStations() {
+    const rows = document.querySelectorAll('#stationsTableBody tr');
+    const stations = [];
+    rows.forEach(row => {
+      const name = row.querySelector('.s-name').value.trim();
+      const equipment = row.querySelector('.s-equipment').value;
+      const weightKg = row.querySelector('.s-weight').value.trim();
+      const reps = row.querySelector('.s-reps').value.trim();
+      if (name || weightKg || reps) stations.push({ name, equipment, weightKg, reps });
+    });
+    return stations;
+  }
+
+  async function loadDesigns() {
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/api/challenge-designs`, { headers: { 'x-admin-key': adminKey } });
+      if (res.status === 403) { errEl.textContent = 'Incorrect admin key.'; return; }
+      if (!res.ok) { errEl.textContent = 'Could not load data (status ' + res.status + ').'; return; }
+      allDesigns = await res.json();
+      document.getElementById('loginGate').style.display = 'none';
+      document.getElementById('mainView').style.display = '';
+      if (!document.getElementById('stationsTableBody').children.length) addStationRow();
+      renderList();
+    } catch (e) {
+      errEl.textContent = 'Could not reach the server.';
+    }
+  }
+
+  function resetForm() {
+    document.getElementById('challengeForm').reset();
+    document.getElementById('stationsTableBody').innerHTML = '';
+    addStationRow();
+    editingId = null;
+    document.getElementById('saveBtn').textContent = 'CREATE DESIGN';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('formMsg').textContent = '';
+  }
+
+  function cancelEdit() {
+    resetForm();
+  }
+
+  function loadIntoForm(design) {
+    editingId = design.id;
+    document.querySelector(`input[name="designType"][value="${design.designType}"]`).checked = true;
+    document.querySelector(`input[name="organizerType"][value="${design.organizerType}"]`).checked = true;
+    document.getElementById('organizerName').value = design.organizerName || '';
+    document.getElementById('area').value = design.area || '';
+    document.getElementById('pincode').value = design.pincode || '';
+    document.getElementById('inchargeName').value = design.inchargeName || '';
+    document.getElementById('inchargeNumber').value = design.inchargeNumber || '';
+    document.getElementById('venue').value = design.venue || '';
+    document.getElementById('areaSize').value = design.areaSize || '';
+    document.getElementById('runDistanceM').value = design.runDistanceM || '';
+    document.getElementById('rounds').value = design.rounds || '';
+
+    document.getElementById('stationsTableBody').innerHTML = '';
+    (design.stations || []).forEach(s => addStationRow(s));
+    if (!(design.stations || []).length) addStationRow();
+
+    document.getElementById('saveBtn').textContent = 'UPDATE DESIGN';
+    document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    window.scrollTo(0, 0);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const msgEl = document.getElementById('formMsg');
+    msgEl.textContent = '';
+    msgEl.className = '';
+
+    const designTypeEl = document.querySelector('input[name="designType"]:checked');
+    const organizerTypeEl = document.querySelector('input[name="organizerType"]:checked');
+
+    const payload = {
+      designType: designTypeEl ? designTypeEl.value : '',
+      organizerType: organizerTypeEl ? organizerTypeEl.value : '',
+      organizerName: document.getElementById('organizerName').value.trim(),
+      area: document.getElementById('area').value.trim(),
+      pincode: document.getElementById('pincode').value.trim(),
+      inchargeName: document.getElementById('inchargeName').value.trim(),
+      inchargeNumber: document.getElementById('inchargeNumber').value.trim(),
+      venue: document.getElementById('venue').value.trim(),
+      areaSize: document.getElementById('areaSize').value.trim(),
+      runDistanceM: document.getElementById('runDistanceM').value ? Number(document.getElementById('runDistanceM').value) : null,
+      rounds: document.getElementById('rounds').value ? Number(document.getElementById('rounds').value) : null,
+      stations: collectStations()
+    };
+
+    try {
+      const url = editingId ? `${API_BASE}/api/challenge-designs/${encodeURIComponent(editingId)}` : `${API_BASE}/api/challenge-designs`;
+      const method = editingId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        msgEl.textContent = data.error || 'Could not save this design.';
+        msgEl.className = 'error';
+        return;
+      }
+      msgEl.textContent = editingId ? 'Design updated.' : 'Design created.';
+      msgEl.className = 'success';
+      resetForm();
+      loadDesigns();
+    } catch (e) {
+      msgEl.textContent = 'Could not reach the server.';
+      msgEl.className = 'error';
+    }
+    return false;
+  }
+
+  async function deleteDesign(id) {
+    if (!confirm('Delete this design permanently?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/challenge-designs/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': adminKey }
+      });
+      if (!res.ok) { alert('Could not delete this design.'); return; }
+      loadDesigns();
+    } catch (e) {
+      alert('Could not reach the server.');
+    }
+  }
+
+  function editDesign(id) {
+    const design = allDesigns.find(d => d.id === id);
+    if (design) loadIntoForm(design);
+  }
+
+  function printDesign(id) {
+    const design = allDesigns.find(d => d.id === id);
+    if (!design) return;
+
+    const stationsRows = (design.stations || []).map((s, i) => `
+      <tr><td>${i + 1}</td><td>${s.name || '—'}</td><td>${s.equipment || '—'}</td><td>${s.weightKg || '—'}</td><td>${s.reps || '—'}</td></tr>
+    `).join('');
+
+    document.getElementById('printSheet').innerHTML = `
+      <h2>DEADLY DOZEN — ${design.designType}</h2>
+      <div class="meta-grid">
+        <div><span>For:</span> ${design.organizerType} — ${design.organizerName}</div>
+        <div><span>Area:</span> ${design.area || '—'}</div>
+        <div><span>Pincode:</span> ${design.pincode || '—'}</div>
+        <div><span>Incharge:</span> ${design.inchargeName || '—'} (${design.inchargeNumber || '—'})</div>
+        <div><span>Venue:</span> ${design.venue || '—'}</div>
+        <div><span>Area size:</span> ${design.areaSize || '—'}</div>
+        <div><span>Run distance:</span> ${design.runDistanceM || '—'} m</div>
+        <div><span>Rounds:</span> ${design.rounds || '—'}</div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Labour</th><th>Equipment</th><th>Weight (kg)</th><th>Reps / Distance</th></tr></thead>
+        <tbody>${stationsRows}</tbody>
+      </table>
+    `;
+    window.print();
+  }
+
+  function renderList() {
+    const wrap = document.getElementById('listWrap');
+    if (!allDesigns.length) {
+      wrap.innerHTML = '<div class="empty-state">No designs created yet.</div>';
+      return;
+    }
+    const rows = allDesigns.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    let html = `<table class="designs-table"><thead><tr>
+      <th>Type</th><th>For</th><th>Venue</th><th>Run / Rounds</th><th>Stations</th><th>Created</th><th></th>
+    </tr></thead><tbody>`;
+
+    rows.forEach(d => {
+      const when = d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN') : '—';
+      html += `<tr>
+        <td><span class="pill">${d.designType}</span></td>
+        <td>${d.organizerType}<br><span style="color:var(--muted); font-size:12px;">${d.organizerName}</span></td>
+        <td>${d.venue || '—'}</td>
+        <td>${d.runDistanceM || '—'}m × ${d.rounds || '—'}</td>
+        <td>${(d.stations || []).length}</td>
+        <td>${when}</td>
+        <td>
+          <button class="row-btn" onclick="editDesign('${d.id}')">Edit</button>
+          <button class="row-btn" onclick="printDesign('${d.id}')">Print</button>
+          <button class="row-btn danger" onclick="deleteDesign('${d.id}')">Delete</button>
+        </td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+</script>
+
+</body>
+</html>

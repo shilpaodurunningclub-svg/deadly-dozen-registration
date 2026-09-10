@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadly Dozen — Gym Partners</title>
+<style>
+  :root {
+    --red: #a3271f;
+    --red-dark: #7f1e18;
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --border: #d9d9d9;
+    --card: #f6f5f4;
+    --page: #e9e7e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  .topbar { height: 6px; background: var(--red); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { color: var(--red); letter-spacing: 1px; font-size: 24px; margin: 0 0 20px; }
+
+  #loginGate {
+    max-width: 420px;
+    margin: 80px auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+  }
+  #loginGate h2 { margin-top: 0; font-size: 18px; color: var(--red); }
+  #loginGate input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  #loginGate button {
+    width: 100%;
+    padding: 12px;
+    background: var(--red);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 15px;
+  }
+  #loginError { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+  .top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .refresh-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    padding: 10px 12px;
+    background: #f0eeec;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: top;
+  }
+  tbody tr:hover { background: #fafafa; }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f6e3e1;
+    color: var(--red);
+    margin: 2px 3px 0 0;
+  }
+
+  .weights-mini { font-size: 12px; color: var(--muted); }
+  .weights-mini div { margin-bottom: 2px; }
+
+  .row-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--red);
+  }
+  .row-btn:hover { background: #fbe4e2; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+<div class="wrap">
+
+  <div id="loginGate">
+    <h2>DEADLY DOZEN — Gym Partners</h2>
+    <p style="font-size:13px; color:var(--muted);">Enter the admin key to view gym submissions.</p>
+    <input type="password" id="adminKeyInput" placeholder="Admin key" onkeydown="if(event.key==='Enter') login()">
+    <button onclick="login()">View submissions</button>
+    <div id="loginError"></div>
+  </div>
+
+  <div id="mainView" style="display:none;">
+    <div class="top-row">
+      <h1>Gym Partners (<span id="gymCount">0</span>)</h1>
+      <button class="refresh-btn" onclick="loadGyms()">↻ Refresh</button>
+    </div>
+    <div id="tableWrap"></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = '';
+  let adminKey = '';
+  let allGyms = [];
+
+  function login() {
+    adminKey = document.getElementById('adminKeyInput').value.trim();
+    if (!adminKey) return;
+    loadGyms();
+  }
+
+  async function loadGyms() {
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/api/gyms`, { headers: { 'x-admin-key': adminKey } });
+      if (res.status === 403) {
+        errEl.textContent = 'Incorrect admin key.';
+        return;
+      }
+      if (!res.ok) {
+        errEl.textContent = 'Could not load data (status ' + res.status + ').';
+        return;
+      }
+      allGyms = await res.json();
+      document.getElementById('loginGate').style.display = 'none';
+      document.getElementById('mainView').style.display = '';
+      renderTable();
+    } catch (e) {
+      errEl.textContent = 'Could not reach the server.';
+    }
+  }
+
+  async function deleteGym(id) {
+    if (!confirm('Delete this gym submission permanently?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/gyms/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': adminKey }
+      });
+      if (!res.ok) {
+        alert('Could not delete this entry.');
+        return;
+      }
+      loadGyms();
+    } catch (e) {
+      alert('Could not reach the server.');
+    }
+  }
+
+  function renderTable() {
+    document.getElementById('gymCount').textContent = allGyms.length;
+    const wrap = document.getElementById('tableWrap');
+
+    if (!allGyms.length) {
+      wrap.innerHTML = '<div class="empty-state">No gym submissions yet.</div>';
+      return;
+    }
+
+    const rows = allGyms.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    let html = `<table><thead><tr>
+      <th>Gym</th><th>Contact</th><th>Type</th><th>Specialised</th><th>Deadly Dozen</th><th>Track Host</th><th>Equipment</th><th>Submitted</th><th></th>
+    </tr></thead><tbody>`;
+
+    rows.forEach(g => {
+      const type = g.gymType === 'Other' ? (g.gymTypeOther || 'Other') : g.gymType;
+      const spec = (g.specialisation || []).map(s => s === 'Other' ? (g.specialisationOther || 'Other') : s);
+      const specHtml = spec.length ? spec.map(s => `<span class="pill">${s}</span>`).join('') : '—';
+      const ddAssoc = (g.deadlyDozenAssociation || []).map(a => a === 'Other' ? (g.deadlyDozenAssociationOther || 'Other') : a);
+      const ddHtml = ddAssoc.length
+        ? ddAssoc.map(a => `<span class="pill">${a}</span>`).join('')
+        : '—';
+      const trackHostHtml = (g.deadlyDozenTrackHost || []).length
+        ? g.deadlyDozenTrackHost.map(a => `<span class="pill">${a}</span>`).join('')
+        : '—';
+      const weightsHtml = (g.weights || []).length
+        ? `<div class="weights-mini">${g.weights.map(w => `<div>${w.equipment}: ${w.weightKg || '—'}kg × ${w.quantity || '—'}</div>`).join('')}</div>`
+        : '—';
+      const when = g.createdAt ? new Date(g.createdAt).toLocaleString('en-IN') : '—';
+
+      html += `<tr>
+        <td><strong>${g.name}</strong><br><span style="color:var(--muted); font-size:12px;">${g.address}</span></td>
+        <td>${g.phone}</td>
+        <td>${type}</td>
+        <td>${specHtml}</td>
+        <td>${ddHtml}</td>
+        <td>${trackHostHtml}</td>
+        <td>${weightsHtml}</td>
+        <td>${when}</td>
+        <td><button class="row-btn" onclick="deleteGym('${g.id}')">Delete</button></td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+</script>
+
+</body>
+</html>

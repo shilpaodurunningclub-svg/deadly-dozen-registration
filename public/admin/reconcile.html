@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadly Dozen — Registration Reconciliation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --red: #a3271f;
+    --red-dark: #7f1e18;
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --border: #d9d9d9;
+    --card: #f6f5f4;
+    --page: #e9e7e5;
+    --green: #1a7a3a;
+    --amber: #a06a00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  .topbar { height: 6px; background: var(--red); }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { color: var(--red); letter-spacing: 0.5px; font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 22px;
+    margin-bottom: 22px;
+  }
+  .card h2 { margin: 0 0 14px; font-size: 16px; color: var(--red); }
+
+  .upload-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  .upload-box {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    text-align: center;
+  }
+  .upload-box.loaded { border-color: var(--green); background: #f2f9f4; }
+  .upload-box label { display: block; font-weight: 700; margin-bottom: 6px; font-size: 13px; }
+  .upload-box .optional-tag { font-weight: 400; color: var(--muted); font-size: 11px; }
+  .upload-box input[type="file"] { width: 100%; font-size: 12px; }
+  .upload-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .source-settings {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: var(--card);
+  }
+  .source-settings h3 { margin: 0 0 12px; font-size: 13px; color: var(--red); text-transform: uppercase; letter-spacing: 0.4px; }
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { margin-bottom: 10px; }
+  label.field-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  select, input[type="text"] {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-family: inherit;
+    background: #fff;
+  }
+
+  .checkbox-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+  .checkbox-list label {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; background: #fff; border: 1px solid var(--border);
+    padding: 5px 10px; border-radius: 14px; cursor: pointer;
+  }
+  .checkbox-list input { width: 13px; height: 13px; accent-color: var(--red); }
+
+  .compare-btn, .download-btn {
+    padding: 12px 26px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .compare-btn { background: var(--red); color: #fff; }
+  .compare-btn:hover { background: var(--red-dark); }
+  .compare-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .download-btn { background: #fff; border: 1px solid var(--red); color: var(--red); margin-left: 10px; }
+  .download-btn:hover { background: #fbe4e2; }
+
+  #statusMsg { font-size: 13px; margin-top: 10px; }
+  #statusMsg.error { color: var(--red); }
+
+  .summary-row { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .summary-pill {
+    padding: 10px 18px; border-radius: 8px; background: #fff; border: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .summary-pill b { display: block; font-size: 20px; }
+
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; }
+  thead th {
+    text-align: left; padding: 8px 10px; background: #f0eeec;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+    text-transform: uppercase; letter-spacing: 0.3px; color: var(--muted); font-size: 11px;
+  }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody tr:hover { background: #fafafa; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  .badge.registered { background: #e3f4e8; color: var(--green); }
+  .badge.pending { background: #fdf1d9; color: var(--amber); }
+  .badge.not_paid { background: #fbe4e2; color: var(--red); }
+  .badge.incomplete { background: #eee; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+<div class="wrap">
+  <h1>Registration Reconciliation</h1>
+  <p class="sub">Upload your Registered Details plus one or both payment sources to cross-check them. Everything happens in your browser — no files are uploaded anywhere.</p>
+
+  <div class="card">
+    <h2>1. Upload files</h2>
+    <div class="upload-row">
+      <div class="upload-box" id="regBox">
+        <label for="regFile">Registered Details (Excel/CSV)</label>
+        <input type="file" id="regFile" accept=".xlsx,.xls,.csv" onchange="handleFile(this, 'reg')">
+        <div class="upload-status" id="regStatus">No file selected</div>
+      </div>
+      <div class="upload-box" id="payBox">
+        <label for="payFile">Payment Details <span class="optional-tag">(optional)</span></label>
+        <input type="file" id="payFile" accept=".xlsx,.xls,.csv" onchange="handleFile(this, 'pay')">
+        <div class="upload-status" id="payStatus">No file selected</div>
+      </div>
+      <div class="upload-box" id="rzpBox">
+        <label for="rzpFile">Razorpay Payment Details <span class="optional-tag">(optional)</span></label>
+        <input type="file" id="rzpFile" accept=".xlsx,.xls,.csv" onchange="handleFile(this, 'rzp')">
+        <div class="upload-status" id="rzpStatus">No file selected</div>
+      </div>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin:12px 0 0;">Upload Registered Details plus at least one of the two payment sources. If you upload both, a row counts as paid if <em>either</em> source shows it paid.</p>
+  </div>
+
+  <div class="card" id="settingsCard" style="display:none;">
+    <h2>2. Match settings</h2>
+
+    <div class="source-settings">
+      <h3>Registered Details</h3>
+      <div class="field">
+        <label class="field-label" for="regKeyCol">Match column (e.g. Registration Code, Email, Phone)</label>
+        <select id="regKeyCol"></select>
+      </div>
+      <div class="field">
+        <label class="field-label">Required columns (a row missing any of these is marked "Not filled full details")</label>
+        <div class="checkbox-list" id="requiredColsList"></div>
+      </div>
+    </div>
+
+    <div class="source-settings" id="paySettings" style="display:none;">
+      <h3>Payment Details</h3>
+      <div class="settings-grid">
+        <div class="field">
+          <label class="field-label" for="payKeyCol">Matching column</label>
+          <select id="payKeyCol"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="payStatusColSelect">Status column (optional — blank = any match counts as paid)</label>
+          <select id="payStatusColSelect"><option value="">— None —</option></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="payPaidValue">Text meaning "Paid" in that column</label>
+          <input type="text" id="payPaidValue" placeholder="e.g. Paid, Success, Y">
+        </div>
+      </div>
+    </div>
+
+    <div class="source-settings" id="rzpSettings" style="display:none;">
+      <h3>Razorpay Payment Details</h3>
+      <div class="settings-grid">
+        <div class="field">
+          <label class="field-label" for="rzpKeyCol">Matching column (usually Contact, Email, or Order ID)</label>
+          <select id="rzpKeyCol"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="rzpStatusColSelect">Status column (Razorpay calls this "Status")</label>
+          <select id="rzpStatusColSelect"><option value="">— None —</option></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="rzpPaidValue">Text meaning "Paid" (Razorpay uses "captured")</label>
+          <input type="text" id="rzpPaidValue" value="captured">
+        </div>
+      </div>
+    </div>
+
+    <button class="compare-btn" id="compareBtn" onclick="runComparison()">Compare</button>
+    <div id="statusMsg"></div>
+  </div>
+
+  <div class="card" id="resultsCard" style="display:none;">
+    <h2 style="display:inline-block;">3. Results</h2>
+    <button class="download-btn" onclick="downloadResults()">⬇ Download as CSV</button>
+
+    <div class="summary-row" id="summaryRow"></div>
+    <div class="table-scroll">
+      <table id="resultsTable"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let regData = null; // { headers: [], rows: [] }
+  let payData = null;
+  let rzpData = null;
+  let resultsRows = [];
+  let resultsHeaders = [];
+
+  function parseSheet(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          const headers = json.length ? Object.keys(json[0]) : [];
+          resolve({ headers, rows: json });
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function handleFile(input, which) {
+    const file = input.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById(which + 'Status');
+    const boxEl = document.getElementById(which + 'Box');
+    statusEl.textContent = 'Reading...';
+
+    try {
+      const data = await parseSheet(file);
+      if (which === 'reg') regData = data;
+      else if (which === 'pay') payData = data;
+      else rzpData = data;
+      statusEl.textContent = `Loaded: ${data.rows.length} rows, ${data.headers.length} columns`;
+      boxEl.classList.add('loaded');
+    } catch (err) {
+      statusEl.textContent = 'Could not read this file. Make sure it is a valid Excel or CSV file.';
+    }
+
+    if (regData && (payData || rzpData)) setupSettings();
+  }
+
+  function guessCol(headers, priorities) {
+    for (const p of priorities) {
+      const found = headers.find(h => h.toLowerCase().includes(p));
+      if (found) return found;
+    }
+    return headers[0];
+  }
+
+  const KEY_PRIORITIES = ['registration code', 'reg code', 'reg id', 'registration id', 'email', 'contact', 'phone', 'mobile'];
+
+  function setupSettings() {
+    document.getElementById('settingsCard').style.display = '';
+
+    const regKeySel = document.getElementById('regKeyCol');
+    const requiredList = document.getElementById('requiredColsList');
+    regKeySel.innerHTML = regData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
+    regKeySel.value = guessCol(regData.headers, KEY_PRIORITIES);
+    requiredList.innerHTML = regData.headers.map(h =>
+      `<label><input type="checkbox" class="req-col" value="${h}" checked> ${h}</label>`
+    ).join('');
+
+    if (payData) {
+      document.getElementById('paySettings').style.display = '';
+      const payKeySel = document.getElementById('payKeyCol');
+      const payStatusSel = document.getElementById('payStatusColSelect');
+      payKeySel.innerHTML = payData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
+      payKeySel.value = guessCol(payData.headers, KEY_PRIORITIES);
+      payStatusSel.innerHTML = '<option value="">— None —</option>' + payData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
+      const statusGuess = payData.headers.find(h => h.toLowerCase().includes('status'));
+      if (statusGuess) payStatusSel.value = statusGuess;
+    }
+
+    if (rzpData) {
+      document.getElementById('rzpSettings').style.display = '';
+      const rzpKeySel = document.getElementById('rzpKeyCol');
+      const rzpStatusSel = document.getElementById('rzpStatusColSelect');
+      rzpKeySel.innerHTML = rzpData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
+      rzpKeySel.value = guessCol(rzpData.headers, ['contact', 'email', 'order id', 'order_id']);
+      rzpStatusSel.innerHTML = '<option value="">— None —</option>' + rzpData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
+      const rzpStatusGuess = rzpData.headers.find(h => h.toLowerCase() === 'status') || rzpData.headers.find(h => h.toLowerCase().includes('status'));
+      if (rzpStatusGuess) rzpStatusSel.value = rzpStatusGuess;
+    }
+  }
+
+  function normalise(val) {
+    return String(val == null ? '' : val).trim().toLowerCase();
+  }
+
+  function buildLookup(data, keyCol) {
+    const byKey = {};
+    data.rows.forEach(row => {
+      const k = normalise(row[keyCol]);
+      if (!k) return;
+      if (!byKey[k]) byKey[k] = [];
+      byKey[k].push(row);
+    });
+    return byKey;
+  }
+
+  // Checks one payment source for a given registered row's key.
+  // Returns { matched: bool, paid: bool, row: object|null }
+  function checkSource(data, lookup, keyValue, statusCol, paidValueRaw) {
+    if (!data) return { matched: false, paid: false, row: null };
+    const matches = keyValue ? lookup[keyValue] : null;
+    if (!matches || !matches.length) return { matched: false, paid: false, row: null };
+
+    const row = matches[0];
+    let paid = true;
+    if (statusCol) {
+      const statusVal = normalise(row[statusCol]);
+      paid = paidValueRaw ? statusVal.includes(paidValueRaw) : (statusVal.includes('paid') || statusVal.includes('success') || statusVal.includes('captured'));
+    }
+    return { matched: true, paid, row };
+  }
+
+  function runComparison() {
+    const statusMsg = document.getElementById('statusMsg');
+    statusMsg.textContent = '';
+    statusMsg.className = '';
+
+    if (!payData && !rzpData) {
+      statusMsg.textContent = 'Please upload at least one payment source (Payment Details or Razorpay Payment Details).';
+      statusMsg.className = 'error';
+      return;
+    }
+
+    const regKeyCol = document.getElementById('regKeyCol').value;
+    const requiredCols = Array.from(document.querySelectorAll('.req-col:checked')).map(el => el.value);
+
+    const payKeyCol = payData ? document.getElementById('payKeyCol').value : null;
+    const payStatusCol = payData ? document.getElementById('payStatusColSelect').value : null;
+    const payPaidValue = payData ? document.getElementById('payPaidValue').value.trim().toLowerCase() : '';
+    const payLookup = payData ? buildLookup(payData, payKeyCol) : null;
+
+    const rzpKeyCol = rzpData ? document.getElementById('rzpKeyCol').value : null;
+    const rzpStatusCol = rzpData ? document.getElementById('rzpStatusColSelect').value : null;
+    const rzpPaidValue = rzpData ? document.getElementById('rzpPaidValue').value.trim().toLowerCase() : '';
+    const rzpLookup = rzpData ? buildLookup(rzpData, rzpKeyCol) : null;
+
+    resultsHeaders = [
+      ...regData.headers,
+      ...(payData ? payData.headers.map(h => 'Pay: ' + h) : []),
+      ...(rzpData ? rzpData.headers.map(h => 'Razorpay: ' + h) : []),
+      'Result'
+    ];
+
+    resultsRows = regData.rows.map(regRow => {
+      const missing = requiredCols.some(col => normalise(regRow[col]) === '');
+      if (missing) return buildRow(regRow, null, null, 'incomplete');
+
+      const keyVal = normalise(regRow[regKeyCol]);
+      const payCheck = checkSource(payData, payLookup, keyVal, payStatusCol, payPaidValue);
+      const rzpCheck = checkSource(rzpData, rzpLookup, keyVal, rzpStatusCol, rzpPaidValue);
+
+      let result;
+      if (payCheck.paid || rzpCheck.paid) result = 'registered';
+      else if (payCheck.matched || rzpCheck.matched) result = 'pending';
+      else result = 'not_paid';
+
+      return buildRow(regRow, payCheck.row, rzpCheck.row, result);
+    });
+
+    renderResults();
+  }
+
+  function buildRow(regRow, payRow, rzpRow, resultKey) {
+    const merged = {};
+    regData.headers.forEach(h => { merged[h] = regRow[h]; });
+    if (payData) payData.headers.forEach(h => { merged['Pay: ' + h] = payRow ? payRow[h] : ''; });
+    if (rzpData) rzpData.headers.forEach(h => { merged['Razorpay: ' + h] = rzpRow ? rzpRow[h] : ''; });
+    merged['Result'] = resultKey;
+    return merged;
+  }
+
+  const RESULT_LABELS = {
+    registered: 'Registered',
+    pending: 'Pending',
+    not_paid: 'Not Paid',
+    incomplete: 'Not filled full details'
+  };
+
+  function renderResults() {
+    document.getElementById('resultsCard').style.display = '';
+
+    const counts = { registered: 0, pending: 0, not_paid: 0, incomplete: 0 };
+    resultsRows.forEach(r => counts[r.Result]++);
+
+    document.getElementById('summaryRow').innerHTML = `
+      <div class="summary-pill"><b>${resultsRows.length}</b>Total rows</div>
+      <div class="summary-pill"><b style="color:var(--green);">${counts.registered}</b>Registered</div>
+      <div class="summary-pill"><b style="color:var(--amber);">${counts.pending}</b>Pending</div>
+      <div class="summary-pill"><b style="color:var(--red);">${counts.not_paid}</b>Not Paid</div>
+      <div class="summary-pill"><b style="color:var(--muted);">${counts.incomplete}</b>Not filled full details</div>
+    `;
+
+    const table = document.getElementById('resultsTable');
+    let html = '<thead><tr>' + resultsHeaders.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    resultsRows.forEach(row => {
+      html += '<tr>' + resultsHeaders.slice(0, -1).map(h => `<td>${row[h] === '' || row[h] == null ? '—' : row[h]}</td>`).join('');
+      html += `<td><span class="badge ${row.Result}">${RESULT_LABELS[row.Result]}</span></td></tr>`;
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+
+  function csvEscape(value) {
+    const str = value === null || value === undefined ? '' : String(value);
+    if (/[",\n]/.test(str)) return '"' + str.replace(/"/g, '""') + '"';
+    return str;
+  }
+
+  function downloadResults() {
+    if (!resultsRows.length) return;
+    const lines = [resultsHeaders.map(csvEscape).join(',')];
+    resultsRows.forEach(row => {
+      lines.push(resultsHeaders.map(h => csvEscape(h === 'Result' ? RESULT_LABELS[row.Result] : row[h])).join(','));
+    });
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `deadly-dozen-reconciliation-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+</script>
+
+</body>
+</html>
