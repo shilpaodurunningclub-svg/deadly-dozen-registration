@@ -11,6 +11,56 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
+
+// ---------- Razorpay webhook (must come before express.json(), needs the RAW body for signature check) ----------
+// Set this same URL + a secret in Razorpay Dashboard → Settings → Webhooks, subscribed to "payment.captured".
+// This is what reliably marks a registration "paid" even if the browser-side checkout callback never fires
+// (e.g. the tab was backgrounded while switching to a UPI app).
+app.post('/api/razorpay-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
+  if (!secret) {
+    console.error('Webhook received but RAZORPAY_WEBHOOK_SECRET is not set — rejecting.');
+    return res.status(500).send('Webhook secret not configured.');
+  }
+
+  const signature = req.get('x-razorpay-signature') || '';
+  const expected = crypto.createHmac('sha256', secret).update(req.body).digest('hex');
+  if (expected !== signature) {
+    console.error('Webhook signature mismatch — rejecting.');
+    return res.status(400).send('Invalid signature.');
+  }
+
+  let event;
+  try {
+    event = JSON.parse(req.body.toString('utf8'));
+  } catch (e) {
+    return res.status(400).send('Invalid JSON.');
+  }
+
+  try {
+    if (event.event === 'payment.captured') {
+      const payment = event.payload && event.payload.payment && event.payload.payment.entity;
+      if (payment && payment.order_id) {
+        const { rows } = await pool.query('SELECT * FROM registrations WHERE razorpay_order_id = $1', [payment.order_id]);
+        if (rows.length && rows[0].status !== 'paid') {
+          const { rows: updated } = await pool.query(
+            `UPDATE registrations SET status = 'paid', razorpay_payment_id = $1, paid_at = now() WHERE id = $2 RETURNING *`,
+            [payment.id, rows[0].id]
+          );
+          console.log(`Webhook: marked ${rows[0].id} as paid (payment ${payment.id}).`);
+          await sendConfirmationEmail(mapRegistrationRow(updated[0]));
+        } else if (!rows.length) {
+          console.warn(`Webhook: payment.captured for unknown order_id ${payment.order_id}.`);
+        }
+      }
+    }
+    res.status(200).send('ok');
+  } catch (err) {
+    console.error('Webhook processing failed:', err);
+    res.status(500).send('Processing error.');
+  }
+});
+
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -62,12 +112,48 @@ async function ensureSchema() {
       active BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    CREATE TABLE IF NOT EXISTS gyms (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      address TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      gym_type TEXT NOT NULL,
+      gym_type_other TEXT,
+      specialisation JSONB NOT NULL DEFAULT '[]',
+      specialisation_other TEXT,
+      deadly_dozen_association JSONB NOT NULL DEFAULT '[]',
+      deadly_dozen_association_other TEXT,
+      deadly_dozen_track_host JSONB NOT NULL DEFAULT '[]',
+      weights JSONB NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS challenge_designs (
+      id TEXT PRIMARY KEY,
+      design_type TEXT NOT NULL,
+      organizer_type TEXT NOT NULL,
+      organizer_name TEXT NOT NULL,
+      area TEXT,
+      pincode TEXT,
+      incharge_name TEXT,
+      incharge_number TEXT,
+      venue TEXT,
+      area_size TEXT,
+      run_distance_m NUMERIC,
+      rounds INT,
+      stations JSONB NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 
   // Safe to run every startup — adds the column only if it isn't already there,
   // for the case where the registrations table already existed before this field was introduced.
   await pool.query(`
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS registration_code TEXT;
+    ALTER TABLE gyms ADD COLUMN IF NOT EXISTS deadly_dozen_association_other TEXT;
+    ALTER TABLE gyms ADD COLUMN IF NOT EXISTS deadly_dozen_track_host JSONB NOT NULL DEFAULT '[]';
   `);
 
   // One-time migration of the single test registration that existed in the old
@@ -129,6 +215,44 @@ function mapCouponRow(row) {
     usedCount: row.used_count,
     active: row.active,
     createdAt: row.created_at
+  };
+}
+
+function mapGymRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    address: row.address,
+    phone: row.phone,
+    gymType: row.gym_type,
+    gymTypeOther: row.gym_type_other,
+    specialisation: row.specialisation,
+    specialisationOther: row.specialisation_other,
+    deadlyDozenAssociation: row.deadly_dozen_association,
+    deadlyDozenAssociationOther: row.deadly_dozen_association_other,
+    deadlyDozenTrackHost: row.deadly_dozen_track_host,
+    weights: row.weights,
+    createdAt: row.created_at
+  };
+}
+
+function mapChallengeRow(row) {
+  return {
+    id: row.id,
+    designType: row.design_type,
+    organizerType: row.organizer_type,
+    organizerName: row.organizer_name,
+    area: row.area,
+    pincode: row.pincode,
+    inchargeName: row.incharge_name,
+    inchargeNumber: row.incharge_number,
+    venue: row.venue,
+    areaSize: row.area_size,
+    runDistanceM: row.run_distance_m === null ? null : Number(row.run_distance_m),
+    rounds: row.rounds,
+    stations: row.stations,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -609,6 +733,30 @@ app.get('/api/registrations-summary', requireAdmin, async (req, res) => {
   }
 });
 
+// ---------- Manually mark a registration as paid (admin only) ----------
+// For reconciling cases where Razorpay shows a captured payment but our DB still says
+// pending — e.g. the browser-side checkout callback never fired.
+// Body (optional): { razorpayPaymentId: "pay_..." }
+app.post('/api/registrations/:id/mark-paid', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found.' });
+    if (rows[0].status === 'paid') return res.json({ ok: true, alreadyPaid: true, record: mapRegistrationRow(rows[0]) });
+
+    const paymentId = (req.body && req.body.razorpayPaymentId) || rows[0].razorpay_payment_id || null;
+    const { rows: updated } = await pool.query(
+      `UPDATE registrations SET status = 'paid', razorpay_payment_id = COALESCE($1, razorpay_payment_id), paid_at = now() WHERE id = $2 RETURNING *`,
+      [paymentId, req.params.id]
+    );
+    const record = mapRegistrationRow(updated[0]);
+    await sendConfirmationEmail(record);
+    res.json({ ok: true, record });
+  } catch (err) {
+    console.error('mark-paid failed:', err);
+    res.status(500).json({ error: 'Server error marking as paid.' });
+  }
+});
+
 // ---------- Delete one registration (admin only) ----------
 app.delete('/api/registrations/:id', requireAdmin, async (req, res) => {
   try {
@@ -644,6 +792,31 @@ app.get('/api/coupons', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('list coupons failed:', err);
     res.status(500).json({ error: 'Server error loading coupons.' });
+  }
+});
+
+// ---------- Export all coupons as CSV (admin only) ----------
+app.get('/api/coupons/export.csv', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM coupons ORDER BY created_at DESC');
+    const list = rows.map(mapCouponRow);
+
+    const headers = ['Code', 'Percentage', 'Categories', 'Assigned Name', 'Assigned Phone', 'Assigned Email', 'Max Uses', 'Used Count', 'Active', 'Created At'];
+    const lines = [headers.map(csvEscape).join(',')];
+    list.forEach(c => {
+      lines.push([
+        c.code, c.percentage, (c.categories || []).join('; '), c.assignedName, c.assignedPhone, c.assignedEmail,
+        c.maxUses, c.usedCount, c.active, c.createdAt
+      ].map(csvEscape).join(','));
+    });
+
+    const csv = lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="deadly-dozen-coupons-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('coupons CSV export failed:', err);
+    res.status(500).json({ error: 'Server error generating CSV.' });
   }
 });
 
@@ -714,6 +887,183 @@ app.delete('/api/coupons/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('delete coupon failed:', err);
     res.status(500).json({ error: 'Server error deleting coupon.' });
+  }
+});
+
+// ---------- Submit a gym information form (public) ----------
+// Body: { name, address, phone, gymType, gymTypeOther, specialisation: [], specialisationOther,
+//         deadlyDozenAssociation: [], weights: [{ equipment, weightKg, quantity, notes }] }
+app.post('/api/gyms', async (req, res) => {
+  const body = req.body || {};
+  const name = (body.name || '').trim();
+  const address = (body.address || '').trim();
+  const phone = (body.phone || '').trim();
+  const gymType = (body.gymType || '').trim();
+
+  if (!name || !address) {
+    return res.status(400).json({ error: 'Gym name and address are required.' });
+  }
+  if (!/^[0-9]{10}$/.test(phone)) {
+    return res.status(400).json({ error: 'Phone number must be exactly 10 digits.' });
+  }
+  if (!gymType) {
+    return res.status(400).json({ error: 'Please select a gym type.' });
+  }
+
+  const specialisation = Array.isArray(body.specialisation) ? body.specialisation : [];
+  const deadlyDozenAssociation = Array.isArray(body.deadlyDozenAssociation) ? body.deadlyDozenAssociation : [];
+  const deadlyDozenTrackHost = Array.isArray(body.deadlyDozenTrackHost) ? body.deadlyDozenTrackHost : [];
+  const weights = Array.isArray(body.weights) ? body.weights : [];
+
+  const id = 'GYM-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO gyms (
+        id, name, address, phone, gym_type, gym_type_other,
+        specialisation, specialisation_other, deadly_dozen_association, deadly_dozen_association_other,
+        deadly_dozen_track_host, weights
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING *`,
+      [
+        id, name, address, phone, gymType, body.gymTypeOther || null,
+        JSON.stringify(specialisation), body.specialisationOther || null,
+        JSON.stringify(deadlyDozenAssociation), body.deadlyDozenAssociationOther || null,
+        JSON.stringify(deadlyDozenTrackHost), JSON.stringify(weights)
+      ]
+    );
+    res.json({ ok: true, gymId: id, record: mapGymRow(rows[0]) });
+  } catch (err) {
+    console.error('gym submission failed:', err);
+    res.status(500).json({ error: 'Server error saving gym information.' });
+  }
+});
+
+// ---------- List all gym submissions (admin only) ----------
+app.get('/api/gyms', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM gyms ORDER BY created_at DESC');
+    res.json(rows.map(mapGymRow));
+  } catch (err) {
+    console.error('list gyms failed:', err);
+    res.status(500).json({ error: 'Server error loading gyms.' });
+  }
+});
+
+// ---------- Delete a gym submission (admin only) ----------
+app.delete('/api/gyms/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('DELETE FROM gyms WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Gym not found.' });
+    res.json({ ok: true, deleted: rows[0].id });
+  } catch (err) {
+    console.error('delete gym failed:', err);
+    res.status(500).json({ error: 'Server error deleting gym.' });
+  }
+});
+
+// ---------- Challenge Designs (Simulation / Mini Challenge) — admin only ----------
+
+function validateChallengeBody(body) {
+  if (!body.designType) return 'Please select a design type (Simulation or Mini Challenge).';
+  if (!body.organizerType) return 'Please select who this is for (Gym, DD, or Run Club).';
+  if (!(body.organizerName || '').trim()) return 'Organizer name is required.';
+  return null;
+}
+
+// ---------- Create a challenge design ----------
+app.post('/api/challenge-designs', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const err = validateChallengeBody(body);
+  if (err) return res.status(400).json({ error: err });
+
+  const id = 'CHL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  const stations = Array.isArray(body.stations) ? body.stations : [];
+
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO challenge_designs (
+        id, design_type, organizer_type, organizer_name, area, pincode,
+        incharge_name, incharge_number, venue, area_size, run_distance_m, rounds, stations
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      RETURNING *`,
+      [
+        id, body.designType, body.organizerType, body.organizerName.trim(),
+        body.area || null, body.pincode || null, body.inchargeName || null, body.inchargeNumber || null,
+        body.venue || null, body.areaSize || null, body.runDistanceM || null, body.rounds || null,
+        JSON.stringify(stations)
+      ]
+    );
+    res.json({ ok: true, id, record: mapChallengeRow(rows[0]) });
+  } catch (err) {
+    console.error('create challenge design failed:', err);
+    res.status(500).json({ error: 'Server error saving challenge design.' });
+  }
+});
+
+// ---------- List all challenge designs ----------
+app.get('/api/challenge-designs', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM challenge_designs ORDER BY created_at DESC');
+    res.json(rows.map(mapChallengeRow));
+  } catch (err) {
+    console.error('list challenge designs failed:', err);
+    res.status(500).json({ error: 'Server error loading challenge designs.' });
+  }
+});
+
+// ---------- Get one challenge design ----------
+app.get('/api/challenge-designs/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM challenge_designs WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found.' });
+    res.json(mapChallengeRow(rows[0]));
+  } catch (err) {
+    console.error('get challenge design failed:', err);
+    res.status(500).json({ error: 'Server error loading challenge design.' });
+  }
+});
+
+// ---------- Update a challenge design ----------
+app.put('/api/challenge-designs/:id', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const err = validateChallengeBody(body);
+  if (err) return res.status(400).json({ error: err });
+
+  const stations = Array.isArray(body.stations) ? body.stations : [];
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE challenge_designs SET
+        design_type = $1, organizer_type = $2, organizer_name = $3, area = $4, pincode = $5,
+        incharge_name = $6, incharge_number = $7, venue = $8, area_size = $9,
+        run_distance_m = $10, rounds = $11, stations = $12, updated_at = now()
+      WHERE id = $13
+      RETURNING *`,
+      [
+        body.designType, body.organizerType, body.organizerName.trim(),
+        body.area || null, body.pincode || null, body.inchargeName || null, body.inchargeNumber || null,
+        body.venue || null, body.areaSize || null, body.runDistanceM || null, body.rounds || null,
+        JSON.stringify(stations), req.params.id
+      ]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found.' });
+    res.json({ ok: true, record: mapChallengeRow(rows[0]) });
+  } catch (err) {
+    console.error('update challenge design failed:', err);
+    res.status(500).json({ error: 'Server error updating challenge design.' });
+  }
+});
+
+// ---------- Delete a challenge design ----------
+app.delete('/api/challenge-designs/:id', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('DELETE FROM challenge_designs WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found.' });
+    res.json({ ok: true, deleted: rows[0].id });
+  } catch (err) {
+    console.error('delete challenge design failed:', err);
+    res.status(500).json({ error: 'Server error deleting challenge design.' });
   }
 });
 
