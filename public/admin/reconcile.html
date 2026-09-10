@@ -164,6 +164,10 @@
         <label class="field-label">Required columns (a row missing any of these is marked "Not filled full details")</label>
         <div class="checkbox-list" id="requiredColsList"></div>
       </div>
+      <div class="field">
+        <label class="field-label">Columns to include in the final sheet</label>
+        <div class="checkbox-list" id="regShowColsList"></div>
+      </div>
     </div>
 
     <div class="source-settings" id="paySettings" style="display:none;">
@@ -182,6 +186,10 @@
           <input type="text" id="payPaidValue" placeholder="e.g. Paid, Success, Y">
         </div>
       </div>
+      <div class="field">
+        <label class="field-label">Columns to include in the final sheet</label>
+        <div class="checkbox-list" id="payShowColsList"></div>
+      </div>
     </div>
 
     <div class="source-settings" id="rzpSettings" style="display:none;">
@@ -199,6 +207,10 @@
           <label class="field-label" for="rzpPaidValue">Text meaning "Paid" (Razorpay uses "captured")</label>
           <input type="text" id="rzpPaidValue" value="captured">
         </div>
+      </div>
+      <div class="field">
+        <label class="field-label">Columns to include in the final sheet (Razorpay exports have a lot — pick just what you need)</label>
+        <div class="checkbox-list" id="rzpShowColsList"></div>
       </div>
     </div>
 
@@ -284,6 +296,9 @@
     requiredList.innerHTML = regData.headers.map(h =>
       `<label><input type="checkbox" class="req-col" value="${h}" checked> ${h}</label>`
     ).join('');
+    document.getElementById('regShowColsList').innerHTML = regData.headers.map(h =>
+      `<label><input type="checkbox" class="reg-show-col" value="${h}" checked> ${h}</label>`
+    ).join('');
 
     if (payData) {
       document.getElementById('paySettings').style.display = '';
@@ -294,6 +309,9 @@
       payStatusSel.innerHTML = '<option value="">— None —</option>' + payData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
       const statusGuess = payData.headers.find(h => h.toLowerCase().includes('status'));
       if (statusGuess) payStatusSel.value = statusGuess;
+      document.getElementById('payShowColsList').innerHTML = payData.headers.map(h =>
+        `<label><input type="checkbox" class="pay-show-col" value="${h}" checked> ${h}</label>`
+      ).join('');
     }
 
     if (rzpData) {
@@ -305,11 +323,32 @@
       rzpStatusSel.innerHTML = '<option value="">— None —</option>' + rzpData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
       const rzpStatusGuess = rzpData.headers.find(h => h.toLowerCase() === 'status') || rzpData.headers.find(h => h.toLowerCase().includes('status'));
       if (rzpStatusGuess) rzpStatusSel.value = rzpStatusGuess;
+      // Razorpay exports tend to be wide — default to a sensible smaller subset instead of everything.
+      const rzpDefaultShow = ['id', 'amount', 'status', 'method', 'email', 'contact', 'order_id', 'created_at'];
+      document.getElementById('rzpShowColsList').innerHTML = rzpData.headers.map(h => {
+        const checked = rzpDefaultShow.includes(h.toLowerCase()) ? 'checked' : '';
+        return `<label><input type="checkbox" class="rzp-show-col" value="${h}" ${checked}> ${h}</label>`;
+      }).join('');
     }
   }
 
   function normalise(val) {
-    return String(val == null ? '' : val).trim().toLowerCase();
+    const str = String(val == null ? '' : val).trim();
+    if (!str) return '';
+
+    // If this value looks like a phone number (only digits + formatting characters like
+    // +, spaces, dashes, brackets), clean it down to a canonical 10-digit number so
+    // "+91 98866 23640", "09886623640", and "9886623640" all match each other.
+    const looksLikePhone = /^[\d+\-\s().]+$/.test(str) && str.replace(/[^0-9]/g, '').length >= 10;
+    if (looksLikePhone) {
+      let digits = str.replace(/[^0-9]/g, '');
+      if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(-10);
+      if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+      if (digits.length > 10) digits = digits.slice(-10);
+      return digits;
+    }
+
+    return str.toLowerCase();
   }
 
   function buildLookup(data, keyCol) {
@@ -350,29 +389,41 @@
       return;
     }
 
+    const regShowColsCheck = Array.from(document.querySelectorAll('.reg-show-col:checked'));
+    const payShowColsCheck = Array.from(document.querySelectorAll('.pay-show-col:checked'));
+    const rzpShowColsCheck = Array.from(document.querySelectorAll('.rzp-show-col:checked'));
+    if (!regShowColsCheck.length && !payShowColsCheck.length && !rzpShowColsCheck.length) {
+      statusMsg.textContent = 'Please select at least one column to include in the final sheet.';
+      statusMsg.className = 'error';
+      return;
+    }
+
     const regKeyCol = document.getElementById('regKeyCol').value;
     const requiredCols = Array.from(document.querySelectorAll('.req-col:checked')).map(el => el.value);
+    const regShowCols = Array.from(document.querySelectorAll('.reg-show-col:checked')).map(el => el.value);
 
     const payKeyCol = payData ? document.getElementById('payKeyCol').value : null;
     const payStatusCol = payData ? document.getElementById('payStatusColSelect').value : null;
     const payPaidValue = payData ? document.getElementById('payPaidValue').value.trim().toLowerCase() : '';
     const payLookup = payData ? buildLookup(payData, payKeyCol) : null;
+    const payShowCols = payData ? Array.from(document.querySelectorAll('.pay-show-col:checked')).map(el => el.value) : [];
 
     const rzpKeyCol = rzpData ? document.getElementById('rzpKeyCol').value : null;
     const rzpStatusCol = rzpData ? document.getElementById('rzpStatusColSelect').value : null;
     const rzpPaidValue = rzpData ? document.getElementById('rzpPaidValue').value.trim().toLowerCase() : '';
     const rzpLookup = rzpData ? buildLookup(rzpData, rzpKeyCol) : null;
+    const rzpShowCols = rzpData ? Array.from(document.querySelectorAll('.rzp-show-col:checked')).map(el => el.value) : [];
 
     resultsHeaders = [
-      ...regData.headers,
-      ...(payData ? payData.headers.map(h => 'Pay: ' + h) : []),
-      ...(rzpData ? rzpData.headers.map(h => 'Razorpay: ' + h) : []),
+      ...regShowCols,
+      ...payShowCols.map(h => 'Pay: ' + h),
+      ...rzpShowCols.map(h => 'Razorpay: ' + h),
       'Result'
     ];
 
     resultsRows = regData.rows.map(regRow => {
       const missing = requiredCols.some(col => normalise(regRow[col]) === '');
-      if (missing) return buildRow(regRow, null, null, 'incomplete');
+      if (missing) return buildRow(regRow, null, null, 'incomplete', regShowCols, payShowCols, rzpShowCols);
 
       const keyVal = normalise(regRow[regKeyCol]);
       const payCheck = checkSource(payData, payLookup, keyVal, payStatusCol, payPaidValue);
@@ -383,17 +434,17 @@
       else if (payCheck.matched || rzpCheck.matched) result = 'pending';
       else result = 'not_paid';
 
-      return buildRow(regRow, payCheck.row, rzpCheck.row, result);
+      return buildRow(regRow, payCheck.row, rzpCheck.row, result, regShowCols, payShowCols, rzpShowCols);
     });
 
     renderResults();
   }
 
-  function buildRow(regRow, payRow, rzpRow, resultKey) {
+  function buildRow(regRow, payRow, rzpRow, resultKey, regShowCols, payShowCols, rzpShowCols) {
     const merged = {};
-    regData.headers.forEach(h => { merged[h] = regRow[h]; });
-    if (payData) payData.headers.forEach(h => { merged['Pay: ' + h] = payRow ? payRow[h] : ''; });
-    if (rzpData) rzpData.headers.forEach(h => { merged['Razorpay: ' + h] = rzpRow ? rzpRow[h] : ''; });
+    regShowCols.forEach(h => { merged[h] = regRow[h]; });
+    payShowCols.forEach(h => { merged['Pay: ' + h] = payRow ? payRow[h] : ''; });
+    rzpShowCols.forEach(h => { merged['Razorpay: ' + h] = rzpRow ? rzpRow[h] : ''; });
     merged['Result'] = resultKey;
     return merged;
   }
