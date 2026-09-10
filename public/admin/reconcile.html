@@ -332,23 +332,38 @@
     }
   }
 
+  // Strips +91 / leading 0 / spaces / dashes / brackets down to a bare 10-digit number.
+  // Returns null if the value doesn't actually look like a phone number.
+  function cleanPhoneDigits(str) {
+    const looksLikePhone = /^[\d+\-\s().]+$/.test(str) && str.replace(/[^0-9]/g, '').length >= 10;
+    if (!looksLikePhone) return null;
+    let digits = str.replace(/[^0-9]/g, '');
+    if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(-10);
+    if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+    if (digits.length > 10) digits = digits.slice(-10);
+    return digits;
+  }
+
+  function isPhoneLikeHeader(h) {
+    const lh = String(h || '').toLowerCase();
+    return lh.includes('phone') || lh.includes('contact') || lh.includes('mobile');
+  }
+
+  // For matching/lookup keys — cleans phone numbers, lowercases everything else.
   function normalise(val) {
     const str = String(val == null ? '' : val).trim();
     if (!str) return '';
+    const phoneDigits = cleanPhoneDigits(str);
+    return phoneDigits !== null ? phoneDigits : str.toLowerCase();
+  }
 
-    // If this value looks like a phone number (only digits + formatting characters like
-    // +, spaces, dashes, brackets), clean it down to a canonical 10-digit number so
-    // "+91 98866 23640", "09886623640", and "9886623640" all match each other.
-    const looksLikePhone = /^[\d+\-\s().]+$/.test(str) && str.replace(/[^0-9]/g, '').length >= 10;
-    if (looksLikePhone) {
-      let digits = str.replace(/[^0-9]/g, '');
-      if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(-10);
-      if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
-      if (digits.length > 10) digits = digits.slice(-10);
-      return digits;
-    }
-
-    return str.toLowerCase();
+  // For values actually shown in the results table/CSV — only touches columns whose
+  // header name looks like a phone field, and never changes casing of other data.
+  function cleanForDisplay(header, val) {
+    if (val === '' || val == null) return val;
+    if (!isPhoneLikeHeader(header)) return val;
+    const cleaned = cleanPhoneDigits(String(val).trim());
+    return cleaned !== null ? cleaned : val;
   }
 
   function buildLookup(data, keyCol) {
@@ -442,9 +457,9 @@
 
   function buildRow(regRow, payRow, rzpRow, resultKey, regShowCols, payShowCols, rzpShowCols) {
     const merged = {};
-    regShowCols.forEach(h => { merged[h] = regRow[h]; });
-    payShowCols.forEach(h => { merged['Pay: ' + h] = payRow ? payRow[h] : ''; });
-    rzpShowCols.forEach(h => { merged['Razorpay: ' + h] = rzpRow ? rzpRow[h] : ''; });
+    regShowCols.forEach(h => { merged[h] = cleanForDisplay(h, regRow[h]); });
+    payShowCols.forEach(h => { merged['Pay: ' + h] = payRow ? cleanForDisplay(h, payRow[h]) : ''; });
+    rzpShowCols.forEach(h => { merged['Razorpay: ' + h] = rzpRow ? cleanForDisplay(h, rzpRow[h]) : ''; });
     merged['Result'] = resultKey;
     return merged;
   }
