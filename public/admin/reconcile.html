@@ -95,8 +95,16 @@
   .download-btn { background: #fff; border: 1px solid var(--red); color: var(--red); margin-left: 10px; }
   .download-btn:hover { background: #fbe4e2; }
 
-  #statusMsg { font-size: 13px; margin-top: 10px; }
-  #statusMsg.error { color: var(--red); }
+  .btn-row { display: flex; gap: 10px; align-items: center; }
+  .cancel-btn {
+    padding: 12px 22px; border-radius: 6px; border: 1px solid var(--border);
+    background: #fff; color: var(--ink); font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .cancel-btn:hover { background: #f2f2f2; }
+
+  #statusMsg, #cleanStatusMsg { font-size: 13px; margin-top: 10px; }
+  #statusMsg.error, #cleanStatusMsg.error { color: var(--red); }
+  #statusMsg.success, #cleanStatusMsg.success { color: var(--green); font-weight: 600; }
 
   .summary-row { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
   .summary-pill {
@@ -151,8 +159,22 @@
     <p style="font-size:12px; color:var(--muted); margin:12px 0 0;">Upload Registered Details plus at least one of the two payment sources. If you upload both, a row counts as paid if <em>either</em> source shows it paid.</p>
   </div>
 
+  <div class="card" id="cleanCard" style="display:none;">
+    <h2>2. Clean mobile numbers</h2>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">Pick the phone/mobile column in each uploaded file (or leave as "— Skip —" if not applicable). This strips +91, leading 0s, spaces and dashes down to a plain 10-digit number, so the same person's number matches across files even if formatted differently.</p>
+
+    <div class="settings-grid" id="cleanColsGrid"></div>
+
+    <div class="btn-row">
+      <button class="compare-btn" id="cleanBtn" onclick="cleanAllPhoneColumns()">Clean Numbers</button>
+      <button class="cancel-btn" style="display:inline-block;" onclick="skipCleaning()">Skip this step</button>
+    </div>
+    <div id="cleanStatusMsg"></div>
+    <div id="cleanPreviewWrap"></div>
+  </div>
+
   <div class="card" id="settingsCard" style="display:none;">
-    <h2>2. Match settings</h2>
+    <h2>3. Match settings</h2>
 
     <div class="source-settings">
       <h3>Registered Details</h3>
@@ -219,7 +241,7 @@
   </div>
 
   <div class="card" id="resultsCard" style="display:none;">
-    <h2 style="display:inline-block;">3. Results</h2>
+    <h2 style="display:inline-block;">4. Results</h2>
     <button class="download-btn" onclick="downloadResults()">⬇ Download as CSV</button>
 
     <div class="summary-row" id="summaryRow"></div>
@@ -273,7 +295,90 @@
       statusEl.textContent = 'Could not read this file. Make sure it is a valid Excel or CSV file.';
     }
 
-    if (regData && (payData || rzpData)) setupSettings();
+    if (regData && (payData || rzpData)) setupCleanStep();
+  }
+
+  // ---------- Step 2: Clean Mobile Numbers ----------
+  function setupCleanStep() {
+    document.getElementById('settingsCard').style.display = 'none';
+    document.getElementById('resultsCard').style.display = 'none';
+    document.getElementById('cleanStatusMsg').textContent = '';
+    document.getElementById('cleanPreviewWrap').innerHTML = '';
+
+    const sources = [
+      { key: 'reg', label: 'Registered Details', data: regData },
+      { key: 'pay', label: 'Payment Details', data: payData },
+      { key: 'rzp', label: 'Razorpay Payment Details', data: rzpData }
+    ].filter(s => s.data);
+
+    const grid = document.getElementById('cleanColsGrid');
+    grid.innerHTML = sources.map(s => {
+      const guess = s.data.headers.find(h => isPhoneLikeHeader(h)) || '';
+      const options = ['<option value="">— Skip —</option>']
+        .concat(s.data.headers.map(h => `<option value="${h}" ${h === guess ? 'selected' : ''}>${h}</option>`));
+      return `
+        <div class="field">
+          <label class="field-label" for="cleanCol_${s.key}">${s.label} — phone/mobile column</label>
+          <select id="cleanCol_${s.key}">${options.join('')}</select>
+        </div>`;
+    }).join('');
+
+    document.getElementById('cleanCard').style.display = '';
+    document.getElementById('cleanCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function cleanAllPhoneColumns() {
+    const statusMsg = document.getElementById('cleanStatusMsg');
+    const previewWrap = document.getElementById('cleanPreviewWrap');
+    statusMsg.textContent = '';
+    previewWrap.innerHTML = '';
+
+    const sources = [
+      { key: 'reg', label: 'Registered Details', data: regData },
+      { key: 'pay', label: 'Payment Details', data: payData },
+      { key: 'rzp', label: 'Razorpay Payment Details', data: rzpData }
+    ].filter(s => s.data);
+
+    let totalCleaned = 0;
+    let previewHtml = '';
+
+    sources.forEach(s => {
+      const col = document.getElementById('cleanCol_' + s.key).value;
+      if (!col) return; // skipped
+
+      let changedCount = 0;
+      const samples = [];
+      s.data.rows.forEach(row => {
+        const original = row[col];
+        const originalStr = String(original == null ? '' : original).trim();
+        if (!originalStr) return;
+        const cleaned = cleanPhoneDigits(originalStr);
+        if (cleaned !== null && cleaned !== originalStr) {
+          if (samples.length < 5) samples.push({ original: originalStr, cleaned });
+          row[col] = cleaned;
+          changedCount++;
+        }
+      });
+
+      totalCleaned += changedCount;
+      previewHtml += `<div style="margin-top:12px;"><strong style="font-size:13px;">${s.label} — "${col}"</strong> <span style="color:var(--muted); font-size:12px;">(${changedCount} of ${s.data.rows.length} rows cleaned)</span>`;
+      if (samples.length) {
+        previewHtml += '<table style="margin-top:6px;"><thead><tr><th>Original</th><th>Cleaned</th></tr></thead><tbody>';
+        samples.forEach(sm => { previewHtml += `<tr><td>${sm.original}</td><td>${sm.cleaned}</td></tr>`; });
+        previewHtml += '</tbody></table>';
+      }
+      previewHtml += '</div>';
+    });
+
+    statusMsg.textContent = `Done — cleaned ${totalCleaned} phone number${totalCleaned === 1 ? '' : 's'} across the selected columns.`;
+    statusMsg.className = 'success';
+    previewWrap.innerHTML = previewHtml || '<p style="font-size:13px; color:var(--muted);">No columns were selected to clean.</p>';
+
+    setupSettings();
+  }
+
+  function skipCleaning() {
+    setupSettings();
   }
 
   function guessCol(headers, priorities) {
@@ -288,6 +393,7 @@
 
   function setupSettings() {
     document.getElementById('settingsCard').style.display = '';
+    document.getElementById('settingsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     const regKeySel = document.getElementById('regKeyCol');
     const requiredList = document.getElementById('requiredColsList');
