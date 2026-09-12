@@ -25,109 +25,77 @@
     color: var(--ink);
   }
   .topbar { height: 6px; background: var(--red); }
-  .wrap { max-width: 1400px; margin: 0 auto; padding: 32px 20px 80px; }
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 32px 20px 80px; }
   h1 { color: var(--red); letter-spacing: 0.5px; font-size: 24px; margin: 0 0 4px; }
   .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
 
-  .card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 22px;
-    margin-bottom: 22px;
-  }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 22px; margin-bottom: 22px; }
   .card h2 { margin: 0 0 14px; font-size: 16px; color: var(--red); }
+  .card p.hint { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
 
-  .upload-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
-  .upload-box {
-    border: 2px dashed var(--border);
-    border-radius: 8px;
-    padding: 18px;
-    text-align: center;
-  }
+  .upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .upload-box { border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center; }
   .upload-box.loaded { border-color: var(--green); background: #f2f9f4; }
-  .upload-box label { display: block; font-weight: 700; margin-bottom: 6px; font-size: 13px; }
-  .upload-box .optional-tag { font-weight: 400; color: var(--muted); font-size: 11px; }
-  .upload-box input[type="file"] { width: 100%; font-size: 12px; }
+  .upload-box label { display: block; font-weight: 700; margin-bottom: 8px; font-size: 14px; }
+  .upload-box input[type="file"] { width: 100%; font-size: 13px; }
   .upload-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
-  .source-settings {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 16px;
-    background: var(--card);
-  }
-  .source-settings h3 { margin: 0 0 12px; font-size: 13px; color: var(--red); text-transform: uppercase; letter-spacing: 0.4px; }
   .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .field { margin-bottom: 10px; }
+  .field { margin-bottom: 12px; }
   label.field-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   select, input[type="text"] {
-    width: 100%;
-    padding: 9px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    font-size: 13px;
-    font-family: inherit;
-    background: #fff;
+    width: 100%; padding: 9px 10px; border-radius: 6px; border: 1px solid var(--border);
+    font-size: 13px; font-family: inherit; background: #fff;
   }
 
-  .checkbox-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
-  .checkbox-list label {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 12px; background: #fff; border: 1px solid var(--border);
-    padding: 5px 10px; border-radius: 14px; cursor: pointer;
-  }
-  .checkbox-list input { width: 13px; height: 13px; accent-color: var(--red); }
+  .source-block { border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; background: var(--card); }
+  .source-block h3 { margin: 0 0 12px; font-size: 13px; color: var(--red); text-transform: uppercase; letter-spacing: 0.4px; }
 
-  .compare-btn, .download-btn {
-    padding: 12px 26px;
-    border-radius: 6px;
-    border: none;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    font-size: 14px;
-    cursor: pointer;
+  .compare-btn, .download-btn, .cancel-btn {
+    padding: 12px 24px; border-radius: 6px; font-weight: 700; letter-spacing: 0.3px; font-size: 14px; cursor: pointer; border: none;
   }
   .compare-btn { background: var(--red); color: #fff; }
   .compare-btn:hover { background: var(--red-dark); }
-  .compare-btn:disabled { background: #ccc; cursor: not-allowed; }
-  .download-btn { background: #fff; border: 1px solid var(--red); color: var(--red); margin-left: 10px; }
+  .download-btn { background: #fff; border: 1px solid var(--red); color: var(--red); }
   .download-btn:hover { background: #fbe4e2; }
-
-  .btn-row { display: flex; gap: 10px; align-items: center; }
-  .cancel-btn {
-    padding: 12px 22px; border-radius: 6px; border: 1px solid var(--border);
-    background: #fff; color: var(--ink); font-weight: 700; font-size: 14px; cursor: pointer;
-  }
+  .cancel-btn { background: #fff; border: 1px solid var(--border); color: var(--ink); }
   .cancel-btn:hover { background: #f2f2f2; }
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
-  #statusMsg, #cleanStatusMsg { font-size: 13px; margin-top: 10px; }
-  #statusMsg.error, #cleanStatusMsg.error { color: var(--red); }
-  #statusMsg.success, #cleanStatusMsg.success { color: var(--green); font-weight: 600; }
+  #uploadMsg, #cleanStatusMsg, #mapStatusMsg { font-size: 13px; margin-top: 10px; }
+  .error { color: var(--red); }
+  .success { color: var(--green); font-weight: 600; }
 
-  .summary-row { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
-  .summary-pill {
-    padding: 10px 18px; border-radius: 8px; background: #fff; border: 1px solid var(--border);
-    font-size: 13px;
+  .dash-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .dash-pill { padding: 12px 18px; border-radius: 8px; background: #fff; border: 1px solid var(--border); font-size: 12px; min-width: 130px; }
+  .dash-pill b { display: block; font-size: 22px; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .filter-btn {
+    padding: 7px 15px; border-radius: 18px; border: 1px solid var(--border); background: #fff;
+    cursor: pointer; font-size: 12px; font-weight: 600;
   }
-  .summary-pill b { display: block; font-size: 20px; }
+  .filter-btn.active { background: var(--red); color: #fff; border-color: var(--red); }
+  .filter-select { max-width: 220px; }
 
-  .table-scroll { overflow-x: auto; }
+  .table-scroll { overflow-x: auto; margin-bottom: 8px; }
   table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; }
   thead th {
-    text-align: left; padding: 8px 10px; background: #f0eeec;
-    border-bottom: 1px solid var(--border); white-space: nowrap;
-    text-transform: uppercase; letter-spacing: 0.3px; color: var(--muted); font-size: 11px;
+    text-align: left; padding: 8px 10px; background: #f0eeec; border-bottom: 1px solid var(--border);
+    white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px; color: var(--muted); font-size: 11px;
   }
   tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   tbody tr:hover { background: #fafafa; }
 
   .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
-  .badge.registered { background: #e3f4e8; color: var(--green); }
-  .badge.pending { background: #fdf1d9; color: var(--amber); }
-  .badge.not_paid { background: #fbe4e2; color: var(--red); }
-  .badge.incomplete { background: #eee; color: var(--muted); }
+  .badge.paid { background: #e3f4e8; color: var(--green); }
+  .badge.notpaid { background: #fbe4e2; color: var(--red); }
+  .badge.direct { background: #e3ecf4; color: #1a4d7a; }
+  .badge.team { background: #fdf1d9; color: var(--amber); }
+
+  .section-title { font-size: 15px; color: var(--red); font-weight: 700; margin: 30px 0 12px; }
+  .checkbox-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+  .checkbox-list label { display: flex; align-items: center; gap: 5px; font-size: 12px; background: #fff; border: 1px solid var(--border); padding: 5px 10px; border-radius: 14px; }
 </style>
 </head>
 <body>
@@ -135,129 +103,124 @@
 <div class="topbar"></div>
 <div class="wrap">
   <h1>Registration Reconciliation</h1>
-  <p class="sub">Upload your Registered Details plus one or both payment sources to cross-check them. Everything happens in your browser — no files are uploaded anywhere.</p>
+  <p class="sub">Compare your Deadly Dozen Registration export against Razorpay's payment export — including team-based payment coverage. Everything happens in your browser; nothing is uploaded anywhere.</p>
 
+  <!-- STEP 1: UPLOAD -->
   <div class="card">
     <h2>1. Upload files</h2>
     <div class="upload-row">
       <div class="upload-box" id="regBox">
-        <label for="regFile">Registered Details (Excel/CSV)</label>
+        <label for="regFile">Deadly Dozen Registration Excel</label>
         <input type="file" id="regFile" accept=".xlsx,.xls,.csv" onchange="handleFile(this, 'reg')">
         <div class="upload-status" id="regStatus">No file selected</div>
       </div>
-      <div class="upload-box" id="payBox">
-        <label for="payFile">Payment Details <span class="optional-tag">(optional)</span></label>
-        <input type="file" id="payFile" accept=".xlsx,.xls,.csv" onchange="handleFile(this, 'pay')">
-        <div class="upload-status" id="payStatus">No file selected</div>
-      </div>
       <div class="upload-box" id="rzpBox">
-        <label for="rzpFile">Razorpay Payment Details <span class="optional-tag">(optional)</span></label>
+        <label for="rzpFile">Razorpay Payment Excel</label>
         <input type="file" id="rzpFile" accept=".xlsx,.xls,.csv" onchange="handleFile(this, 'rzp')">
         <div class="upload-status" id="rzpStatus">No file selected</div>
       </div>
     </div>
-    <p style="font-size:12px; color:var(--muted); margin:12px 0 0;">Upload Registered Details plus at least one of the two payment sources. If you upload both, a row counts as paid if <em>either</em> source shows it paid.</p>
+    <div id="uploadMsg"></div>
   </div>
 
+  <!-- STEP 2: CLEAN CONTACT NUMBERS -->
   <div class="card" id="cleanCard" style="display:none;">
-    <h2>2. Clean mobile numbers</h2>
-    <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">Pick the phone/mobile column in each uploaded file (or leave as "— Skip —" if not applicable). This strips +91, leading 0s, spaces and dashes down to a plain 10-digit number, so the same person's number matches across files even if formatted differently.</p>
-
+    <h2>2. Clean contact numbers</h2>
+    <p class="hint">Pick the contact/phone column in each file. Numbers are normalized to the last 10 digits (strips +91, leading 0s, spaces, dashes) so the same person matches across both files regardless of formatting.</p>
     <div class="settings-grid" id="cleanColsGrid"></div>
-
     <div class="btn-row">
-      <button class="compare-btn" id="cleanBtn" onclick="cleanAllPhoneColumns()">Clean Numbers</button>
-      <button class="cancel-btn" style="display:inline-block;" onclick="skipCleaning()">Skip this step</button>
+      <button class="compare-btn" onclick="cleanContacts()">Clean Numbers</button>
     </div>
     <div id="cleanStatusMsg"></div>
     <div id="cleanPreviewWrap"></div>
   </div>
 
-  <div class="card" id="settingsCard" style="display:none;">
-    <h2>3. Match settings</h2>
+  <!-- STEP 3: COLUMN MAPPING -->
+  <div class="card" id="mapCard" style="display:none;">
+    <h2>3. Map columns</h2>
+    <p class="hint">Tell us which column in each file holds each piece of information. We've guessed based on common header names — check and adjust as needed.</p>
 
-    <div class="source-settings">
-      <h3>Registered Details</h3>
+    <div class="source-block">
+      <h3>Registration fields</h3>
+      <div class="settings-grid" id="regMapGrid"></div>
+    </div>
+
+    <div class="source-block">
+      <h3>Razorpay fields</h3>
+      <div class="settings-grid" id="rzpMapGrid"></div>
       <div class="field">
-        <label class="field-label" for="regKeyCol">Match column (e.g. Registration Code, Email, Phone)</label>
-        <select id="regKeyCol"></select>
-      </div>
-      <div class="field">
-        <label class="field-label">Required columns (a row missing any of these is marked "Not filled full details")</label>
-        <div class="checkbox-list" id="requiredColsList"></div>
-      </div>
-      <div class="field">
-        <label class="field-label">Columns to include in the final sheet</label>
-        <div class="checkbox-list" id="regShowColsList"></div>
+        <label class="field-label" for="rzpPaidValue">Text meaning "captured" (only this counts as paid)</label>
+        <input type="text" id="rzpPaidValue" value="captured">
       </div>
     </div>
 
-    <div class="source-settings" id="paySettings" style="display:none;">
-      <h3>Payment Details</h3>
-      <div class="settings-grid">
-        <div class="field">
-          <label class="field-label" for="payKeyCol">Matching column</label>
-          <select id="payKeyCol"></select>
-        </div>
-        <div class="field">
-          <label class="field-label" for="payStatusColSelect">Status column (optional — blank = any match counts as paid)</label>
-          <select id="payStatusColSelect"><option value="">— None —</option></select>
-        </div>
-        <div class="field">
-          <label class="field-label" for="payPaidValue">Text meaning "Paid" in that column</label>
-          <input type="text" id="payPaidValue" placeholder="e.g. Paid, Success, Y">
-        </div>
-      </div>
-      <div class="field">
-        <label class="field-label">Columns to include in the final sheet</label>
-        <div class="checkbox-list" id="payShowColsList"></div>
-      </div>
+    <div class="btn-row">
+      <button class="compare-btn" onclick="runReconciliation()">Run Reconciliation</button>
     </div>
-
-    <div class="source-settings" id="rzpSettings" style="display:none;">
-      <h3>Razorpay Payment Details</h3>
-      <div class="settings-grid">
-        <div class="field">
-          <label class="field-label" for="rzpKeyCol">Matching column (usually Contact, Email, or Order ID)</label>
-          <select id="rzpKeyCol"></select>
-        </div>
-        <div class="field">
-          <label class="field-label" for="rzpStatusColSelect">Status column (Razorpay calls this "Status")</label>
-          <select id="rzpStatusColSelect"><option value="">— None —</option></select>
-        </div>
-        <div class="field">
-          <label class="field-label" for="rzpPaidValue">Text meaning "Paid" (Razorpay uses "captured")</label>
-          <input type="text" id="rzpPaidValue" value="captured">
-        </div>
-      </div>
-      <div class="field">
-        <label class="field-label">Columns to include in the final sheet (Razorpay exports have a lot — pick just what you need)</label>
-        <div class="checkbox-list" id="rzpShowColsList"></div>
-      </div>
-    </div>
-
-    <button class="compare-btn" id="compareBtn" onclick="runComparison()">Compare</button>
-    <div id="statusMsg"></div>
+    <div id="mapStatusMsg"></div>
   </div>
 
-  <div class="card" id="resultsCard" style="display:none;">
-    <h2 style="display:inline-block;">4. Results</h2>
-    <button class="download-btn" onclick="downloadResults()">⬇ Download as CSV</button>
+  <!-- STEP 4: RESULTS -->
+  <div id="resultsWrap" style="display:none;">
 
-    <div class="summary-row" id="summaryRow"></div>
-    <div class="table-scroll">
-      <table id="resultsTable"></table>
+    <div class="card">
+      <h2>4. Dashboard</h2>
+      <div class="dash-row" id="dashRow"></div>
+      <div class="btn-row">
+        <button class="download-btn" onclick="exportExcel()">⬇ Export Excel (All Registrations · Paid · Not Paid · Team Report · Unmatched Razorpay)</button>
+      </div>
     </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">Reconciliation Report</div>
+      <div class="filter-row" id="statusFilterRow">
+        <button class="filter-btn active" data-f="all" onclick="setStatusFilter('all')">All</button>
+        <button class="filter-btn" data-f="paid" onclick="setStatusFilter('paid')">Paid</button>
+        <button class="filter-btn" data-f="notpaid" onclick="setStatusFilter('notpaid')">Not Paid</button>
+        <button class="filter-btn" data-f="direct" onclick="setStatusFilter('direct')">Direct Paid</button>
+        <button class="filter-btn" data-f="team" onclick="setStatusFilter('team')">Team Paid</button>
+      </div>
+      <div class="filter-row">
+        <select class="filter-select" id="teamFilterSelect" onchange="renderReportTable()">
+          <option value="all">All Teams</option>
+        </select>
+        <select class="filter-select" id="categoryFilterSelect" onchange="renderReportTable()">
+          <option value="all">All Categories</option>
+          <option value="solo">Solo</option>
+          <option value="pairs">Duo/Pairs</option>
+          <option value="relay">Corporate/Relay</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="table-scroll"><table id="reportTable"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">Team Payment Report</div>
+      <div class="table-scroll"><table id="teamTable"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">Unmatched Razorpay Payments</div>
+      <p class="hint">Captured payments whose contact number doesn't match any registration.</p>
+      <div class="table-scroll"><table id="unmatchedTable"></table></div>
+    </div>
+
   </div>
 </div>
 
 <script>
-  let regData = null; // { headers: [], rows: [] }
-  let payData = null;
+  let regData = null; // { headers, rows }
   let rzpData = null;
-  let resultsRows = [];
-  let resultsHeaders = [];
+  let regMap = {};
+  let rzpMap = {};
+  let capturedByContact = {};
+  let results = [];
+  let teamReport = [];
+  let unmatchedRazorpay = [];
+  let statusFilter = 'all';
 
+  // ---------- File parsing ----------
   function parseSheet(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -268,9 +231,7 @@
           const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
           const headers = json.length ? Object.keys(json[0]) : [];
           resolve({ headers, rows: json });
-        } catch (err) {
-          reject(err);
-        }
+        } catch (err) { reject(err); }
       };
       reader.onerror = reject;
       reader.readAsArrayBuffer(file);
@@ -283,102 +244,15 @@
     const statusEl = document.getElementById(which + 'Status');
     const boxEl = document.getElementById(which + 'Box');
     statusEl.textContent = 'Reading...';
-
     try {
       const data = await parseSheet(file);
-      if (which === 'reg') regData = data;
-      else if (which === 'pay') payData = data;
-      else rzpData = data;
+      if (which === 'reg') regData = data; else rzpData = data;
       statusEl.textContent = `Loaded: ${data.rows.length} rows, ${data.headers.length} columns`;
       boxEl.classList.add('loaded');
     } catch (err) {
       statusEl.textContent = 'Could not read this file. Make sure it is a valid Excel or CSV file.';
     }
-
-    if (regData && (payData || rzpData)) setupCleanStep();
-  }
-
-  // ---------- Step 2: Clean Mobile Numbers ----------
-  function setupCleanStep() {
-    document.getElementById('settingsCard').style.display = 'none';
-    document.getElementById('resultsCard').style.display = 'none';
-    document.getElementById('cleanStatusMsg').textContent = '';
-    document.getElementById('cleanPreviewWrap').innerHTML = '';
-
-    const sources = [
-      { key: 'reg', label: 'Registered Details', data: regData },
-      { key: 'pay', label: 'Payment Details', data: payData },
-      { key: 'rzp', label: 'Razorpay Payment Details', data: rzpData }
-    ].filter(s => s.data);
-
-    const grid = document.getElementById('cleanColsGrid');
-    grid.innerHTML = sources.map(s => {
-      const guess = s.data.headers.find(h => isPhoneLikeHeader(h)) || '';
-      const options = ['<option value="">— Skip —</option>']
-        .concat(s.data.headers.map(h => `<option value="${h}" ${h === guess ? 'selected' : ''}>${h}</option>`));
-      return `
-        <div class="field">
-          <label class="field-label" for="cleanCol_${s.key}">${s.label} — phone/mobile column</label>
-          <select id="cleanCol_${s.key}">${options.join('')}</select>
-        </div>`;
-    }).join('');
-
-    document.getElementById('cleanCard').style.display = '';
-    document.getElementById('cleanCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function cleanAllPhoneColumns() {
-    const statusMsg = document.getElementById('cleanStatusMsg');
-    const previewWrap = document.getElementById('cleanPreviewWrap');
-    statusMsg.textContent = '';
-    previewWrap.innerHTML = '';
-
-    const sources = [
-      { key: 'reg', label: 'Registered Details', data: regData },
-      { key: 'pay', label: 'Payment Details', data: payData },
-      { key: 'rzp', label: 'Razorpay Payment Details', data: rzpData }
-    ].filter(s => s.data);
-
-    let totalCleaned = 0;
-    let previewHtml = '';
-
-    sources.forEach(s => {
-      const col = document.getElementById('cleanCol_' + s.key).value;
-      if (!col) return; // skipped
-
-      let changedCount = 0;
-      const samples = [];
-      s.data.rows.forEach(row => {
-        const original = row[col];
-        const originalStr = String(original == null ? '' : original).trim();
-        if (!originalStr) return;
-        const cleaned = cleanPhoneDigits(originalStr);
-        if (cleaned !== null && cleaned !== originalStr) {
-          if (samples.length < 5) samples.push({ original: originalStr, cleaned });
-          row[col] = cleaned;
-          changedCount++;
-        }
-      });
-
-      totalCleaned += changedCount;
-      previewHtml += `<div style="margin-top:12px;"><strong style="font-size:13px;">${s.label} — "${col}"</strong> <span style="color:var(--muted); font-size:12px;">(${changedCount} of ${s.data.rows.length} rows cleaned)</span>`;
-      if (samples.length) {
-        previewHtml += '<table style="margin-top:6px;"><thead><tr><th>Original</th><th>Cleaned</th></tr></thead><tbody>';
-        samples.forEach(sm => { previewHtml += `<tr><td>${sm.original}</td><td>${sm.cleaned}</td></tr>`; });
-        previewHtml += '</tbody></table>';
-      }
-      previewHtml += '</div>';
-    });
-
-    statusMsg.textContent = `Done — cleaned ${totalCleaned} phone number${totalCleaned === 1 ? '' : 's'} across the selected columns.`;
-    statusMsg.className = 'success';
-    previewWrap.innerHTML = previewHtml || '<p style="font-size:13px; color:var(--muted);">No columns were selected to clean.</p>';
-
-    setupSettings();
-  }
-
-  function skipCleaning() {
-    setupSettings();
+    if (regData && rzpData) setupCleanStep();
   }
 
   function guessCol(headers, priorities) {
@@ -386,243 +260,499 @@
       const found = headers.find(h => h.toLowerCase().includes(p));
       if (found) return found;
     }
-    return headers[0];
+    return headers[0] || '';
   }
 
-  const KEY_PRIORITIES = ['registration code', 'reg code', 'reg id', 'registration id', 'email', 'contact', 'phone', 'mobile'];
-
-  function setupSettings() {
-    document.getElementById('settingsCard').style.display = '';
-    document.getElementById('settingsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    const regKeySel = document.getElementById('regKeyCol');
-    const requiredList = document.getElementById('requiredColsList');
-    regKeySel.innerHTML = regData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
-    regKeySel.value = guessCol(regData.headers, KEY_PRIORITIES);
-    requiredList.innerHTML = regData.headers.map(h =>
-      `<label><input type="checkbox" class="req-col" value="${h}" checked> ${h}</label>`
-    ).join('');
-    document.getElementById('regShowColsList').innerHTML = regData.headers.map(h =>
-      `<label><input type="checkbox" class="reg-show-col" value="${h}" checked> ${h}</label>`
-    ).join('');
-
-    if (payData) {
-      document.getElementById('paySettings').style.display = '';
-      const payKeySel = document.getElementById('payKeyCol');
-      const payStatusSel = document.getElementById('payStatusColSelect');
-      payKeySel.innerHTML = payData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
-      payKeySel.value = guessCol(payData.headers, KEY_PRIORITIES);
-      payStatusSel.innerHTML = '<option value="">— None —</option>' + payData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
-      const statusGuess = payData.headers.find(h => h.toLowerCase().includes('status'));
-      if (statusGuess) payStatusSel.value = statusGuess;
-      document.getElementById('payShowColsList').innerHTML = payData.headers.map(h =>
-        `<label><input type="checkbox" class="pay-show-col" value="${h}" checked> ${h}</label>`
-      ).join('');
-    }
-
-    if (rzpData) {
-      document.getElementById('rzpSettings').style.display = '';
-      const rzpKeySel = document.getElementById('rzpKeyCol');
-      const rzpStatusSel = document.getElementById('rzpStatusColSelect');
-      rzpKeySel.innerHTML = rzpData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
-      rzpKeySel.value = guessCol(rzpData.headers, ['contact', 'email', 'order id', 'order_id']);
-      rzpStatusSel.innerHTML = '<option value="">— None —</option>' + rzpData.headers.map(h => `<option value="${h}">${h}</option>`).join('');
-      const rzpStatusGuess = rzpData.headers.find(h => h.toLowerCase() === 'status') || rzpData.headers.find(h => h.toLowerCase().includes('status'));
-      if (rzpStatusGuess) rzpStatusSel.value = rzpStatusGuess;
-      // Razorpay exports tend to be wide — default to a sensible smaller subset instead of everything.
-      const rzpDefaultShow = ['id', 'amount', 'status', 'method', 'email', 'contact', 'order_id', 'created_at'];
-      document.getElementById('rzpShowColsList').innerHTML = rzpData.headers.map(h => {
-        const checked = rzpDefaultShow.includes(h.toLowerCase()) ? 'checked' : '';
-        return `<label><input type="checkbox" class="rzp-show-col" value="${h}" ${checked}> ${h}</label>`;
-      }).join('');
-    }
+  // ---------- Phone cleaning ----------
+  function last10Digits(val) {
+    const digits = String(val == null ? '' : val).replace(/[^0-9]/g, '');
+    if (!digits) return '';
+    return digits.length > 10 ? digits.slice(-10) : digits;
   }
 
-  // Strips +91 / leading 0 / spaces / dashes / brackets down to a bare 10-digit number.
-  // Returns null if the value doesn't actually look like a phone number.
-  function cleanPhoneDigits(str) {
-    const looksLikePhone = /^[\d+\-\s().]+$/.test(str) && str.replace(/[^0-9]/g, '').length >= 10;
-    if (!looksLikePhone) return null;
-    let digits = str.replace(/[^0-9]/g, '');
-    if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(-10);
-    if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
-    if (digits.length > 10) digits = digits.slice(-10);
-    return digits;
+  function setupCleanStep() {
+    document.getElementById('mapCard').style.display = 'none';
+    document.getElementById('resultsWrap').style.display = 'none';
+
+    document.getElementById('cleanColsGrid').innerHTML = `
+      <div class="field">
+        <label class="field-label" for="cleanRegContact">Registration Contact Number column</label>
+        <select id="cleanRegContact">${regData.headers.map(h => `<option value="${h}">${h}</option>`).join('')}</select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="cleanRzpContact">Razorpay contact column</label>
+        <select id="cleanRzpContact">${rzpData.headers.map(h => `<option value="${h}">${h}</option>`).join('')}</select>
+      </div>
+    `;
+    document.getElementById('cleanRegContact').value = guessCol(regData.headers, ['registration contact', 'contact number', 'contact', 'phone', 'mobile']);
+    document.getElementById('cleanRzpContact').value = guessCol(rzpData.headers, ['contact', 'phone', 'mobile']);
+
+    document.getElementById('cleanCard').style.display = '';
+    document.getElementById('cleanCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function isPhoneLikeHeader(h) {
-    const lh = String(h || '').toLowerCase();
-    return lh.includes('phone') || lh.includes('contact') || lh.includes('mobile');
-  }
+  function cleanContacts() {
+    const regCol = document.getElementById('cleanRegContact').value;
+    const rzpCol = document.getElementById('cleanRzpContact').value;
+    const statusMsg = document.getElementById('cleanStatusMsg');
+    const previewWrap = document.getElementById('cleanPreviewWrap');
 
-  // For matching/lookup keys — cleans phone numbers, lowercases everything else.
-  function normalise(val) {
-    const str = String(val == null ? '' : val).trim();
-    if (!str) return '';
-    const phoneDigits = cleanPhoneDigits(str);
-    return phoneDigits !== null ? phoneDigits : str.toLowerCase();
-  }
+    let regChanged = 0, rzpChanged = 0;
+    const regSamples = [], rzpSamples = [];
 
-  // For values actually shown in the results table/CSV — only touches columns whose
-  // header name looks like a phone field, and never changes casing of other data.
-  function cleanForDisplay(header, val) {
-    if (val === '' || val == null) return val;
-    if (!isPhoneLikeHeader(header)) return val;
-    const cleaned = cleanPhoneDigits(String(val).trim());
-    return cleaned !== null ? cleaned : val;
-  }
-
-  function buildLookup(data, keyCol) {
-    const byKey = {};
-    data.rows.forEach(row => {
-      const k = normalise(row[keyCol]);
-      if (!k) return;
-      if (!byKey[k]) byKey[k] = [];
-      byKey[k].push(row);
+    regData.rows.forEach(row => {
+      const original = String(row[regCol] == null ? '' : row[regCol]).trim();
+      if (!original) return;
+      const cleaned = last10Digits(original);
+      if (cleaned !== original) {
+        if (regSamples.length < 5) regSamples.push({ original, cleaned });
+        regChanged++;
+      }
+      row[regCol] = cleaned;
     });
-    return byKey;
-  }
 
-  // Checks one payment source for a given registered row's key.
-  // Returns { matched: bool, paid: bool, row: object|null }
-  function checkSource(data, lookup, keyValue, statusCol, paidValueRaw) {
-    if (!data) return { matched: false, paid: false, row: null };
-    const matches = keyValue ? lookup[keyValue] : null;
-    if (!matches || !matches.length) return { matched: false, paid: false, row: null };
+    rzpData.rows.forEach(row => {
+      const original = String(row[rzpCol] == null ? '' : row[rzpCol]).trim();
+      if (!original) return;
+      const cleaned = last10Digits(original);
+      if (cleaned !== original) {
+        if (rzpSamples.length < 5) rzpSamples.push({ original, cleaned });
+        rzpChanged++;
+      }
+      row[rzpCol] = cleaned;
+    });
 
-    const row = matches[0];
-    let paid = true;
-    if (statusCol) {
-      const statusVal = normalise(row[statusCol]);
-      paid = paidValueRaw ? statusVal.includes(paidValueRaw) : (statusVal.includes('paid') || statusVal.includes('success') || statusVal.includes('captured'));
+    statusMsg.textContent = `Cleaned ${regChanged} registration contact(s) and ${rzpChanged} Razorpay contact(s).`;
+    statusMsg.className = 'success';
+
+    function previewHtml(label, samples) {
+      if (!samples.length) return '';
+      let h = `<div style="margin-top:12px;"><strong style="font-size:13px;">${label}</strong>`;
+      h += '<table style="margin-top:6px;"><thead><tr><th>Original</th><th>Cleaned</th></tr></thead><tbody>';
+      samples.forEach(s => { h += `<tr><td>${s.original}</td><td>${s.cleaned}</td></tr>`; });
+      h += '</tbody></table></div>';
+      return h;
     }
-    return { matched: true, paid, row };
+    previewWrap.innerHTML = previewHtml('Registration', regSamples) + previewHtml('Razorpay', rzpSamples);
+
+    regMap.contact = regCol;
+    rzpMap.contact = rzpCol;
+
+    setupMapStep();
   }
 
-  function runComparison() {
-    const statusMsg = document.getElementById('statusMsg');
-    statusMsg.textContent = '';
-    statusMsg.className = '';
+  // ---------- Column mapping ----------
+  const REG_FIELDS = [
+    { key: 'firstName', label: 'First Name', priorities: ['first name', 'firstname'] },
+    { key: 'lastName', label: 'Last Name', priorities: ['last name', 'lastname'] },
+    { key: 'bookingRef', label: 'Booking Reference', priorities: ['booking reference', 'booking ref', 'reference', 'registration code', 'booking'] },
+    { key: 'team', label: 'Team', priorities: ['team'] },
+    { key: 'email', label: 'Email', priorities: ['email'] },
+    { key: 'regStatus', label: 'Registration Status', priorities: ['registration status', 'status'] },
+    { key: 'regDate', label: 'Registration Date', priorities: ['registration date', 'registered', 'date'] },
+    { key: 'regAmount', label: 'Registration Amount', priorities: ['registration amount', 'amount', 'total'] },
+    { key: 'gender', label: 'Gender', priorities: ['gender'] },
+    { key: 'city', label: 'City', priorities: ['city'] },
+    { key: 'category', label: 'Category / Competition (for Solo/Pairs/Relay filter)', priorities: ['competition', 'category', 'ticket type', 'entry type'] }
+  ];
 
-    if (!payData && !rzpData) {
-      statusMsg.textContent = 'Please upload at least one payment source (Payment Details or Razorpay Payment Details).';
-      statusMsg.className = 'error';
+  const RZP_FIELDS = [
+    { key: 'status', label: 'Status', priorities: ['status'] },
+    { key: 'paymentId', label: 'Payment ID', priorities: ['payment id', 'id'] },
+    { key: 'amount', label: 'Amount', priorities: ['amount'] },
+    { key: 'paymentDate', label: 'Payment Date', priorities: ['payment date', 'created', 'date'] },
+    { key: 'description', label: 'Description (optional — tells Solo/Pairs/Relay payments apart for people registered in more than one competition)', priorities: ['description'] }
+  ];
+
+  function setupMapStep() {
+    document.getElementById('resultsWrap').style.display = 'none';
+
+    document.getElementById('regMapGrid').innerHTML = REG_FIELDS.map(f => `
+      <div class="field">
+        <label class="field-label" for="regMap_${f.key}">${f.label}</label>
+        <select id="regMap_${f.key}">
+          <option value="">— None —</option>
+          ${regData.headers.map(h => `<option value="${h}">${h}</option>`).join('')}
+        </select>
+      </div>
+    `).join('');
+    REG_FIELDS.forEach(f => {
+      const guess = guessCol(regData.headers, f.priorities);
+      if (guess) document.getElementById('regMap_' + f.key).value = guess;
+    });
+
+    document.getElementById('rzpMapGrid').innerHTML = RZP_FIELDS.map(f => `
+      <div class="field">
+        <label class="field-label" for="rzpMap_${f.key}">${f.label}</label>
+        <select id="rzpMap_${f.key}">
+          <option value="">— None —</option>
+          ${rzpData.headers.map(h => `<option value="${h}">${h}</option>`).join('')}
+        </select>
+      </div>
+    `).join('');
+    RZP_FIELDS.forEach(f => {
+      const guess = guessCol(rzpData.headers, f.priorities);
+      if (guess) document.getElementById('rzpMap_' + f.key).value = guess;
+    });
+
+    document.getElementById('mapCard').style.display = '';
+    document.getElementById('mapCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Date formatting (handles Excel serial dates) ----------
+  function formatCell(val) {
+    if (typeof val === 'number' && val > 20000 && val < 60000 && XLSX.SSF) {
+      try {
+        const d = XLSX.SSF.parse_date_code(val);
+        if (d) return new Date(Date.UTC(d.y, d.m - 1, d.d, d.H || 0, d.M || 0, d.S || 0)).toLocaleString('en-IN');
+      } catch (e) {}
+    }
+    return val;
+  }
+
+  function canonicalCategory(val) {
+    const v = String(val || '').toLowerCase();
+    if (v.includes('solo')) return 'solo';
+    if (v.includes('pair') || v.includes('double') || v.includes('duo')) return 'pairs';
+    if (v.includes('relay') || v.includes('corporate')) return 'relay';
+    return 'other';
+  }
+
+  function categoryDisplayLabel(key) {
+    return { solo: 'Solo', pairs: 'Pairs', relay: 'Relay', other: 'Other' }[key] || 'Other';
+  }
+
+  // ---------- Core reconciliation ----------
+  function runReconciliation() {
+    const msgEl = document.getElementById('mapStatusMsg');
+    msgEl.textContent = '';
+    msgEl.className = '';
+
+    REG_FIELDS.forEach(f => { regMap[f.key] = document.getElementById('regMap_' + f.key).value; });
+    RZP_FIELDS.forEach(f => { rzpMap[f.key] = document.getElementById('rzpMap_' + f.key).value; });
+
+    if (!regMap.contact) {
+      msgEl.textContent = 'Registration contact column is missing — go back to Step 2.';
+      msgEl.className = 'error';
+      return;
+    }
+    if (!rzpMap.contact || !rzpMap.status) {
+      msgEl.textContent = 'Razorpay contact and status columns are required.';
+      msgEl.className = 'error';
       return;
     }
 
-    const regShowColsCheck = Array.from(document.querySelectorAll('.reg-show-col:checked'));
-    const payShowColsCheck = Array.from(document.querySelectorAll('.pay-show-col:checked'));
-    const rzpShowColsCheck = Array.from(document.querySelectorAll('.rzp-show-col:checked'));
-    if (!regShowColsCheck.length && !payShowColsCheck.length && !rzpShowColsCheck.length) {
-      statusMsg.textContent = 'Please select at least one column to include in the final sheet.';
-      statusMsg.className = 'error';
-      return;
+    const paidValueRaw = document.getElementById('rzpPaidValue').value.trim().toLowerCase() || 'captured';
+
+    // Build captured payments lookup by contact
+    capturedByContact = {};
+    rzpData.rows.forEach(row => {
+      const status = String(row[rzpMap.status] || '').trim().toLowerCase();
+      if (status !== paidValueRaw) return;
+      const contact = String(row[rzpMap.contact] || '').trim();
+      if (!contact) return;
+      if (!capturedByContact[contact]) capturedByContact[contact] = [];
+      capturedByContact[contact].push({
+        paymentId: rzpMap.paymentId ? row[rzpMap.paymentId] : '',
+        amount: rzpMap.amount ? row[rzpMap.amount] : '',
+        date: rzpMap.paymentDate ? formatCell(row[rzpMap.paymentDate]) : '',
+        description: rzpMap.description ? row[rzpMap.description] : '',
+        contact
+      });
+    });
+
+    // Process registrations — compute category up front since matching now needs it
+    // to correctly handle people registered in more than one competition (e.g. Solo + Pairs)
+    // using the SAME contact number.
+    const regProcessed = regData.rows.map(row => ({
+      raw: row,
+      contact: String(row[regMap.contact] || '').trim(),
+      team: String(regMap.team ? row[regMap.team] : '' || '').trim(),
+      categoryKey: canonicalCategory(regMap.category ? row[regMap.category] : '')
+    }));
+
+    const teamGroups = {}; // lowercase team name -> [indices]
+    regProcessed.forEach((r, i) => {
+      if (!r.team) return;
+      const key = r.team.toLowerCase();
+      if (!teamGroups[key]) teamGroups[key] = [];
+      teamGroups[key].push(i);
+    });
+
+    // A contact is "ambiguous" if it appears under more than one competition
+    // (e.g. the same person registered for both Solo and Pairs). Only for these
+    // do we require the payment's description to say which competition it covers —
+    // everyone else matches on contact alone, same as before.
+    const contactCategories = {};
+    regProcessed.forEach(r => {
+      if (!r.contact) return;
+      if (!contactCategories[r.contact]) contactCategories[r.contact] = new Set();
+      contactCategories[r.contact].add(r.categoryKey);
+    });
+    function isAmbiguousContact(contact) {
+      return contactCategories[contact] && contactCategories[contact].size > 1;
     }
 
-    const regKeyCol = document.getElementById('regKeyCol').value;
-    const requiredCols = Array.from(document.querySelectorAll('.req-col:checked')).map(el => el.value);
-    const regShowCols = Array.from(document.querySelectorAll('.reg-show-col:checked')).map(el => el.value);
+    function descriptionMatchesCategory(description, categoryKey) {
+      if (!description) return true; // no description available — don't block the match
+      const d = String(description).toLowerCase();
+      if (categoryKey === 'solo') return d.includes('solo');
+      if (categoryKey === 'pairs') return d.includes('pair');
+      if (categoryKey === 'relay') return d.includes('relay');
+      return true;
+    }
 
-    const payKeyCol = payData ? document.getElementById('payKeyCol').value : null;
-    const payStatusCol = payData ? document.getElementById('payStatusColSelect').value : null;
-    const payPaidValue = payData ? document.getElementById('payPaidValue').value.trim().toLowerCase() : '';
-    const payLookup = payData ? buildLookup(payData, payKeyCol) : null;
-    const payShowCols = payData ? Array.from(document.querySelectorAll('.pay-show-col:checked')).map(el => el.value) : [];
+    function findMatchingPayment(contact, categoryKey) {
+      const payments = capturedByContact[contact];
+      if (!payments || !payments.length) return null;
+      if (!isAmbiguousContact(contact)) return payments[0];
+      return payments.find(p => descriptionMatchesCategory(p.description, categoryKey)) || null;
+    }
 
-    const rzpKeyCol = rzpData ? document.getElementById('rzpKeyCol').value : null;
-    const rzpStatusCol = rzpData ? document.getElementById('rzpStatusColSelect').value : null;
-    const rzpPaidValue = rzpData ? document.getElementById('rzpPaidValue').value.trim().toLowerCase() : '';
-    const rzpLookup = rzpData ? buildLookup(rzpData, rzpKeyCol) : null;
-    const rzpShowCols = rzpData ? Array.from(document.querySelectorAll('.rzp-show-col:checked')).map(el => el.value) : [];
+    results = regProcessed.map((r, i) => {
+      let paymentStatus = 'Not Paid';
+      let paidThrough = '';
+      let matchedContact = '';
+      let payment = null;
 
-    resultsHeaders = [
-      ...regShowCols,
-      ...payShowCols.map(h => 'Pay: ' + h),
-      ...rzpShowCols.map(h => 'Razorpay: ' + h),
-      'Result'
+      const directPayment = r.contact ? findMatchingPayment(r.contact, r.categoryKey) : null;
+      if (directPayment) {
+        paymentStatus = 'Paid';
+        paidThrough = 'Direct';
+        matchedContact = r.contact;
+        payment = directPayment;
+      } else if (r.team) {
+        const key = r.team.toLowerCase();
+        const teammates = teamGroups[key] || [];
+        for (const j of teammates) {
+          if (j === i) continue;
+          const mate = regProcessed[j];
+          const teamPayment = mate.contact ? findMatchingPayment(mate.contact, r.categoryKey) : null;
+          if (teamPayment) {
+            paymentStatus = 'Paid';
+            paidThrough = 'Team';
+            matchedContact = mate.contact;
+            payment = teamPayment;
+            break;
+          }
+        }
+      }
+
+      const row = r.raw;
+      const catLabel = categoryDisplayLabel(r.categoryKey);
+
+      // Paid Through display: direct payments show "Direct/<Category>" (e.g. "Direct/Pairs",
+      // "Direct/Relay", "Direct/Solo"). Team-covered payments just show the category name
+      // ("Pairs" or "Relay") since Solo entries can never be team-covered.
+      let paidThroughDisplay = '';
+      if (paidThrough === 'Direct') paidThroughDisplay = 'Direct/' + catLabel;
+      else if (paidThrough === 'Team') paidThroughDisplay = catLabel;
+
+      return {
+        firstName: regMap.firstName ? row[regMap.firstName] : '',
+        lastName: regMap.lastName ? row[regMap.lastName] : '',
+        bookingRef: regMap.bookingRef ? row[regMap.bookingRef] : '',
+        team: r.team,
+        email: regMap.email ? row[regMap.email] : '',
+        contact: r.contact,
+        regStatus: regMap.regStatus ? row[regMap.regStatus] : '',
+        regDate: regMap.regDate ? formatCell(row[regMap.regDate]) : '',
+        regAmount: regMap.regAmount ? row[regMap.regAmount] : '',
+        gender: regMap.gender ? row[regMap.gender] : '',
+        city: regMap.city ? row[regMap.city] : '',
+        category: regMap.category ? row[regMap.category] : '',
+        categoryKey: r.categoryKey,
+        paymentStatus,
+        paidThroughType: paidThrough, // raw 'Direct' / 'Team' / '' — used for filtering
+        paidThrough: paidThroughDisplay, // display label — used in the report/export
+        matchedContact,
+        paymentId: payment ? payment.paymentId : '',
+        paymentAmount: payment ? payment.amount : '',
+        paymentDate: payment ? payment.date : ''
+      };
+    });
+
+    // Team Payment Report
+    teamReport = Object.keys(teamGroups).map(key => {
+      const indices = teamGroups[key];
+      const teamName = regProcessed[indices[0]].team;
+      let payingContact = '', payment = null;
+      for (const i of indices) {
+        const r = regProcessed[i];
+        if (r.contact && capturedByContact[r.contact] && capturedByContact[r.contact].length) {
+          payingContact = r.contact;
+          payment = capturedByContact[r.contact][0];
+          break;
+        }
+      }
+      return {
+        teamName,
+        numParticipants: indices.length,
+        status: payment ? 'Paid' : 'Not Paid',
+        payingContact,
+        paymentId: payment ? payment.paymentId : '',
+        amount: payment ? payment.amount : ''
+      };
+    });
+
+    // Unmatched Razorpay
+    const allRegContacts = new Set(regProcessed.map(r => r.contact).filter(Boolean));
+    unmatchedRazorpay = [];
+    let matchedAmount = 0;
+    Object.keys(capturedByContact).forEach(contact => {
+      capturedByContact[contact].forEach(p => {
+        if (allRegContacts.has(contact)) {
+          matchedAmount += Number(p.amount) || 0;
+        } else {
+          unmatchedRazorpay.push(p);
+        }
+      });
+    });
+
+    renderDashboard(matchedAmount);
+    populateFilters();
+    renderReportTable();
+    renderTeamTable();
+    renderUnmatchedTable();
+
+    document.getElementById('resultsWrap').style.display = '';
+    document.getElementById('resultsWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Dashboard ----------
+  function renderDashboard(matchedAmount) {
+    const totalRegistered = results.length;
+    const paidDirect = results.filter(r => r.paidThroughType === 'Direct').length;
+    const paidTeam = results.filter(r => r.paidThroughType === 'Team').length;
+    const totalPaidParticipants = paidDirect + paidTeam;
+    const notPaid = totalRegistered - totalPaidParticipants;
+    const totalTeams = teamReport.length;
+    const paidTeams = teamReport.filter(t => t.status === 'Paid').length;
+    const unpaidTeams = totalTeams - paidTeams;
+
+    const pills = [
+      ['Total Registered', totalRegistered],
+      ['Paid Direct', paidDirect],
+      ['Paid Through Team', paidTeam],
+      ['Total Paid Participants', totalPaidParticipants],
+      ['Not Paid', notPaid],
+      ['Total Teams', totalTeams],
+      ['Paid Teams', paidTeams],
+      ['Unpaid Teams', unpaidTeams],
+      ['Matched Razorpay Amount', '₹' + matchedAmount.toLocaleString('en-IN')],
+      ['Unmatched Captured Payments', unmatchedRazorpay.length]
     ];
 
-    resultsRows = regData.rows.map(regRow => {
-      const missing = requiredCols.some(col => normalise(regRow[col]) === '');
-      if (missing) return buildRow(regRow, null, null, 'incomplete', regShowCols, payShowCols, rzpShowCols);
+    document.getElementById('dashRow').innerHTML = pills.map(([label, val]) =>
+      `<div class="dash-pill"><b>${val}</b>${label}</div>`
+    ).join('');
+  }
 
-      const keyVal = normalise(regRow[regKeyCol]);
-      const payCheck = checkSource(payData, payLookup, keyVal, payStatusCol, payPaidValue);
-      const rzpCheck = checkSource(rzpData, rzpLookup, keyVal, rzpStatusCol, rzpPaidValue);
+  // ---------- Filters ----------
+  function populateFilters() {
+    const teamSel = document.getElementById('teamFilterSelect');
+    const teams = [...new Set(results.map(r => r.team).filter(Boolean))].sort();
+    teamSel.innerHTML = '<option value="all">All Teams</option>' + teams.map(t => `<option value="${t}">${t}</option>`).join('');
+  }
 
-      let result;
-      if (payCheck.paid || rzpCheck.paid) result = 'registered';
-      else if (payCheck.matched || rzpCheck.matched) result = 'pending';
-      else result = 'not_paid';
+  function setStatusFilter(f) {
+    statusFilter = f;
+    document.querySelectorAll('#statusFilterRow .filter-btn').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+    renderReportTable();
+  }
 
-      return buildRow(regRow, payCheck.row, rzpCheck.row, result, regShowCols, payShowCols, rzpShowCols);
+  function getFilteredResults() {
+    const teamVal = document.getElementById('teamFilterSelect').value;
+    const catVal = document.getElementById('categoryFilterSelect').value;
+    return results.filter(r => {
+      if (statusFilter === 'paid' && r.paymentStatus !== 'Paid') return false;
+      if (statusFilter === 'notpaid' && r.paymentStatus !== 'Not Paid') return false;
+      if (statusFilter === 'direct' && r.paidThroughType !== 'Direct') return false;
+      if (statusFilter === 'team' && r.paidThroughType !== 'Team') return false;
+      if (teamVal !== 'all' && r.team !== teamVal) return false;
+      if (catVal !== 'all' && r.categoryKey !== catVal) return false;
+      return true;
     });
-
-    renderResults();
   }
 
-  function buildRow(regRow, payRow, rzpRow, resultKey, regShowCols, payShowCols, rzpShowCols) {
-    const merged = {};
-    regShowCols.forEach(h => { merged[h] = cleanForDisplay(h, regRow[h]); });
-    payShowCols.forEach(h => { merged['Pay: ' + h] = payRow ? cleanForDisplay(h, payRow[h]) : ''; });
-    rzpShowCols.forEach(h => { merged['Razorpay: ' + h] = rzpRow ? cleanForDisplay(h, rzpRow[h]) : ''; });
-    merged['Result'] = resultKey;
-    return merged;
+  const REPORT_HEADERS = ['First Name', 'Last Name', 'Booking Reference', 'Team', 'Competition', 'Email', 'Contact Number', 'Registration Status', 'Registration Date', 'Registration Amount', 'Gender', 'City', 'Payment Status', 'Paid Through', 'Matched Paying Contact', 'Razorpay Payment ID', 'Razorpay Amount', 'Payment Date'];
+
+  function reportRowToArray(r) {
+    return [r.firstName, r.lastName, r.bookingRef, r.team, r.category, r.email, r.contact, r.regStatus, r.regDate, r.regAmount, r.gender, r.city, r.paymentStatus, r.paidThrough, r.matchedContact, r.paymentId, r.paymentAmount, r.paymentDate];
   }
 
-  const RESULT_LABELS = {
-    registered: 'Registered',
-    pending: 'Pending',
-    not_paid: 'Not Paid',
-    incomplete: 'Not filled full details'
-  };
-
-  function renderResults() {
-    document.getElementById('resultsCard').style.display = '';
-
-    const counts = { registered: 0, pending: 0, not_paid: 0, incomplete: 0 };
-    resultsRows.forEach(r => counts[r.Result]++);
-
-    document.getElementById('summaryRow').innerHTML = `
-      <div class="summary-pill"><b>${resultsRows.length}</b>Total rows</div>
-      <div class="summary-pill"><b style="color:var(--green);">${counts.registered}</b>Registered</div>
-      <div class="summary-pill"><b style="color:var(--amber);">${counts.pending}</b>Pending</div>
-      <div class="summary-pill"><b style="color:var(--red);">${counts.not_paid}</b>Not Paid</div>
-      <div class="summary-pill"><b style="color:var(--muted);">${counts.incomplete}</b>Not filled full details</div>
-    `;
-
-    const table = document.getElementById('resultsTable');
-    let html = '<thead><tr>' + resultsHeaders.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-    resultsRows.forEach(row => {
-      html += '<tr>' + resultsHeaders.slice(0, -1).map(h => `<td>${row[h] === '' || row[h] == null ? '—' : row[h]}</td>`).join('');
-      html += `<td><span class="badge ${row.Result}">${RESULT_LABELS[row.Result]}</span></td></tr>`;
+  function renderReportTable() {
+    const rows = getFilteredResults();
+    const table = document.getElementById('reportTable');
+    let html = '<thead><tr>' + REPORT_HEADERS.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    rows.forEach(r => {
+      const vals = reportRowToArray(r);
+      html += '<tr>' + vals.map((v, i) => {
+        if (i === 12) return `<td><span class="badge ${r.paymentStatus === 'Paid' ? 'paid' : 'notpaid'}">${v}</span></td>`;
+        if (i === 13 && v) return `<td><span class="badge ${r.paidThroughType === 'Direct' ? 'direct' : 'team'}">${v}</span></td>`;
+        return `<td>${v === '' || v == null ? '—' : v}</td>`;
+      }).join('') + '</tr>';
     });
     html += '</tbody>';
     table.innerHTML = html;
   }
 
-  function csvEscape(value) {
-    const str = value === null || value === undefined ? '' : String(value);
-    if (/[",\n]/.test(str)) return '"' + str.replace(/"/g, '""') + '"';
-    return str;
+  function renderTeamTable() {
+    const table = document.getElementById('teamTable');
+    const headers = ['Team Name', 'Number of Participants', 'Team Payment Status', 'Paying Contact', 'Razorpay Payment ID', 'Amount'];
+    let html = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    if (!teamReport.length) {
+      html += `<tr><td colspan="${headers.length}" style="color:var(--muted); text-align:center; padding:20px;">No teams found (all registrations have a blank Team field).</td></tr>`;
+    }
+    teamReport.forEach(t => {
+      html += `<tr>
+        <td>${t.teamName}</td>
+        <td>${t.numParticipants}</td>
+        <td><span class="badge ${t.status === 'Paid' ? 'paid' : 'notpaid'}">${t.status}</span></td>
+        <td>${t.payingContact || '—'}</td>
+        <td>${t.paymentId || '—'}</td>
+        <td>${t.amount || '—'}</td>
+      </tr>`;
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
   }
 
-  function downloadResults() {
-    if (!resultsRows.length) return;
-    const lines = [resultsHeaders.map(csvEscape).join(',')];
-    resultsRows.forEach(row => {
-      lines.push(resultsHeaders.map(h => csvEscape(h === 'Result' ? RESULT_LABELS[row.Result] : row[h])).join(','));
+  function renderUnmatchedTable() {
+    const table = document.getElementById('unmatchedTable');
+    const headers = ['Contact', 'Razorpay Payment ID', 'Amount', 'Payment Date'];
+    let html = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    if (!unmatchedRazorpay.length) {
+      html += `<tr><td colspan="${headers.length}" style="color:var(--muted); text-align:center; padding:20px;">No unmatched captured payments.</td></tr>`;
+    }
+    unmatchedRazorpay.forEach(p => {
+      html += `<tr><td>${p.contact}</td><td>${p.paymentId || '—'}</td><td>${p.amount || '—'}</td><td>${p.date || '—'}</td></tr>`;
     });
-    const csv = lines.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `deadly-dozen-reconciliation-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+
+  // ---------- Excel export (multi-sheet) ----------
+  function exportExcel() {
+    const wb = XLSX.utils.book_new();
+
+    const allRows = [REPORT_HEADERS, ...results.map(reportRowToArray)];
+    const paidRows = [REPORT_HEADERS, ...results.filter(r => r.paymentStatus === 'Paid').map(reportRowToArray)];
+    const notPaidRows = [REPORT_HEADERS, ...results.filter(r => r.paymentStatus === 'Not Paid').map(reportRowToArray)];
+
+    const teamHeaders = ['Team Name', 'Number of Participants', 'Team Payment Status', 'Paying Contact', 'Razorpay Payment ID', 'Amount'];
+    const teamRows = [teamHeaders, ...teamReport.map(t => [t.teamName, t.numParticipants, t.status, t.payingContact, t.paymentId, t.amount])];
+
+    const unmatchedHeaders = ['Contact', 'Razorpay Payment ID', 'Amount', 'Payment Date'];
+    const unmatchedRows = [unmatchedHeaders, ...unmatchedRazorpay.map(p => [p.contact, p.paymentId, p.amount, p.date])];
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(allRows), 'All Registrations');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(paidRows), 'Paid');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(notPaidRows), 'Not Paid');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(teamRows), 'Team Report');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(unmatchedRows), 'Unmatched Razorpay');
+
+    XLSX.writeFile(wb, `deadly-dozen-reconciliation-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 </script>
 
