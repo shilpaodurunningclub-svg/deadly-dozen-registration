@@ -878,6 +878,47 @@ app.patch('/api/coupons/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// ---------- Fully edit a coupon (admin only) ----------
+// Same fields as create: code, percentage, categories, assignedName, assignedPhone, assignedEmail, maxUses.
+// usedCount is left untouched — editing a coupon doesn't reset how many times it's already been used.
+app.put('/api/coupons/:id', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const code = (body.code || '').trim().toUpperCase();
+  const percentage = Number(body.percentage);
+  const categories = Array.isArray(body.categories) ? body.categories : [];
+  const maxUses = Number(body.maxUses);
+
+  if (!code) return res.status(400).json({ error: 'A coupon code is required.' });
+  if (!Number.isFinite(percentage) || percentage <= 0 || percentage > 100) {
+    return res.status(400).json({ error: 'Percentage must be a number between 1 and 100.' });
+  }
+  if (!categories.length) {
+    return res.status(400).json({ error: 'Select at least one category (or "all").' });
+  }
+  if (!Number.isFinite(maxUses) || maxUses <= 0) {
+    return res.status(400).json({ error: 'How many uses to assign must be a number greater than 0.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE coupons SET
+        code = $1, percentage = $2, categories = $3,
+        assigned_name = $4, assigned_phone = $5, assigned_email = $6, max_uses = $7
+      WHERE id = $8
+      RETURNING *`,
+      [code, percentage, JSON.stringify(categories), body.assignedName || '', body.assignedPhone || '', body.assignedEmail || '', maxUses, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Coupon not found.' });
+    res.json({ ok: true, coupon: mapCouponRow(rows[0]) });
+  } catch (err) {
+    if (err.code === '23505') { // unique_violation on code
+      return res.status(400).json({ error: `Coupon code "${code}" already exists.` });
+    }
+    console.error('edit coupon failed:', err);
+    res.status(500).json({ error: 'Server error updating coupon.' });
+  }
+});
+
 // ---------- Delete a coupon (admin only) ----------
 app.delete('/api/coupons/:id', requireAdmin, async (req, res) => {
   try {
