@@ -208,7 +208,7 @@
     <p class="subtitle">Create discount codes for specific categories, and see who each one was assigned to and how much it's been used.</p>
 
     <div class="card">
-      <h2>Create a new coupon</h2>
+      <h2 id="formHeading">Create a new coupon</h2>
       <div class="form-grid">
         <div>
           <label class="field-label" for="cCode">Coupon code *</label>
@@ -247,7 +247,8 @@
         </div>
       </div>
 
-      <button class="create-btn" onclick="createCoupon()">Create coupon</button>
+      <button class="create-btn" id="saveBtn" onclick="createCoupon()">Create coupon</button>
+      <button class="create-btn" id="cancelEditBtn" onclick="cancelEdit()" style="display:none; background:#fff; border:1px solid var(--border); color:var(--ink); margin-left:8px;">Cancel edit</button>
       <div id="formMsg"></div>
     </div>
 
@@ -322,6 +323,57 @@
     }
   }
 
+  let editingId = null;
+
+  function resetForm() {
+    document.getElementById('cCode').value = '';
+    document.getElementById('cPercentage').value = '';
+    document.getElementById('cName').value = '';
+    document.getElementById('cPhone').value = '';
+    document.getElementById('cEmail').value = '';
+    document.getElementById('cMaxUses').value = '';
+    document.querySelectorAll('.category-check-row input').forEach(cb => { cb.checked = false; cb.disabled = false; });
+    editingId = null;
+    document.getElementById('formHeading').textContent = 'Create a new coupon';
+    document.getElementById('saveBtn').textContent = 'Create coupon';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('formMsg').textContent = '';
+  }
+
+  function cancelEdit() {
+    resetForm();
+  }
+
+  function editCoupon(id) {
+    const coupon = allCoupons.find(c => c.id === id);
+    if (!coupon) return;
+
+    editingId = id;
+    document.getElementById('cCode').value = coupon.code;
+    document.getElementById('cPercentage').value = coupon.percentage;
+    document.getElementById('cName').value = coupon.assignedName || '';
+    document.getElementById('cPhone').value = coupon.assignedPhone || '';
+    document.getElementById('cEmail').value = coupon.assignedEmail || '';
+    document.getElementById('cMaxUses').value = coupon.maxUses;
+
+    document.querySelectorAll('.category-check-row input').forEach(cb => { cb.checked = false; cb.disabled = false; });
+    if (coupon.categories.includes('all')) {
+      const allCb = document.querySelector('.category-check-row input[value="all"]');
+      allCb.checked = true;
+      handleAllCheckbox(allCb);
+    } else {
+      coupon.categories.forEach(cat => {
+        const cb = document.querySelector(`.category-check-row input[value="${cat}"]`);
+        if (cb) cb.checked = true;
+      });
+    }
+
+    document.getElementById('formHeading').textContent = `Editing "${coupon.code}"`;
+    document.getElementById('saveBtn').textContent = 'Save changes';
+    document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    window.scrollTo(0, 0);
+  }
+
   async function createCoupon() {
     const msgEl = document.getElementById('formMsg');
     msgEl.textContent = '';
@@ -340,29 +392,23 @@
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/coupons`, {
-        method: 'POST',
+      const url = editingId ? `${API_BASE}/api/coupons/${encodeURIComponent(editingId)}` : `${API_BASE}/api/coupons`;
+      const method = editingId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        msgEl.textContent = data.error || 'Could not create coupon.';
+        msgEl.textContent = data.error || 'Could not save coupon.';
         msgEl.className = 'error';
         return;
       }
-      msgEl.textContent = `Coupon "${data.coupon.code}" created.`;
+      msgEl.textContent = editingId ? `Coupon "${data.coupon.code}" updated.` : `Coupon "${data.coupon.code}" created.`;
       msgEl.className = 'success';
 
-      // Reset the form
-      document.getElementById('cCode').value = '';
-      document.getElementById('cPercentage').value = '';
-      document.getElementById('cName').value = '';
-      document.getElementById('cPhone').value = '';
-      document.getElementById('cEmail').value = '';
-      document.getElementById('cMaxUses').value = '';
-      document.querySelectorAll('.category-check-row input').forEach(cb => { cb.checked = false; cb.disabled = false; });
-
+      resetForm();
       loadCoupons();
     } catch (e) {
       msgEl.textContent = 'Could not reach the server.';
@@ -433,6 +479,7 @@
         <td><span class="badge ${c.active ? 'active' : 'inactive'}">${c.active ? 'Active' : 'Inactive'}</span></td>
         <td>${when}</td>
         <td>
+          <button class="row-btn" onclick="editCoupon('${c.id}')">Edit</button>
           <button class="row-btn" onclick="toggleActive('${c.id}', ${!c.active})">${c.active ? 'Disable' : 'Enable'}</button>
           <button class="row-btn danger" onclick="deleteCoupon('${c.id}', '${c.code}')">Delete</button>
         </td>
