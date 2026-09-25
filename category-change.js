@@ -152,7 +152,9 @@ const LIST_COLUMNS = `c.id, c.created_at, c.status, c.current_category, c.curren
   c.credit_code, c.credit_amount, c.admin_note, c.reviewed_at,
   (SELECT active FROM change_codes WHERE code = c.entry_code) AS entry_active,
   (SELECT used_registration_id FROM change_codes WHERE code = c.entry_code) AS entry_used,
-  (SELECT used_registration_id FROM change_codes WHERE code = c.credit_code) AS credit_used`;
+  (SELECT used_registration_id FROM change_codes WHERE code = c.credit_code) AS credit_used,
+  (SELECT used_at FROM change_codes WHERE code = c.entry_code) AS entry_used_at,
+  (SELECT used_at FROM change_codes WHERE code = c.credit_code) AS credit_used_at`;
 
 function register(app, { pool, requireAdmin, getMailer, emailFrom }) {
 
@@ -285,8 +287,38 @@ function register(app, { pool, requireAdmin, getMailer, emailFrom }) {
   app.get('/api/category-changes', requireAdmin, async (req, res) => {
     try {
       const { rows } = await pool.query(`SELECT ${LIST_COLUMNS} FROM category_changes c ORDER BY c.created_at DESC`);
+
+      // Basic details of the registration that redeemed each code
+      const regIds = [...new Set(rows.flatMap(r => [r.entry_used, r.credit_used]).filter(Boolean))];
+      const regs = {};
+      if (regIds.length) {
+        const q = await pool.query(
+          `SELECT id, registration_code, category_label, total_amount, status, paid_at, members, change_code
+           FROM registrations WHERE id = ANY($1)`, [regIds]);
+        q.rows.forEach(g => {
+          const lead = (g.members || [])[0] || {};
+          regs[g.id] = {
+            registrationId: g.id,
+            registrationCode: g.registration_code,
+            name: [lead.firstName, lead.lastName].filter(Boolean).join(' '),
+            email: lead.email || '',
+            phone: lead.contact || '',
+            category: g.category_label,
+            amountPaid: Number(g.total_amount),
+            codeAmount: g.change_code ? Number(g.change_code.amount) : null,
+            status: g.status,
+            paidAt: g.paid_at
+          };
+        });
+      }
+      const usage = (regId, at) => regId ? Object.assign({ usedAt: at }, regs[regId] || { registrationId: regId }) : null;
+
       res.json(rows.map(r => Object.assign(mapRow(r), {
-        codeActive: r.entry_active, entryUsed: !!r.entry_used, creditUsed: !!r.credit_used })));
+        codeActive: r.entry_active,
+        entryUsed: !!r.entry_used, creditUsed: !!r.credit_used,
+        entryUsage: usage(r.entry_used, r.entry_used_at),
+        creditUsage: usage(r.credit_used, r.credit_used_at)
+      })));
     } catch (err) {
       console.error('list category changes failed:', err);
       res.status(500).json({ error: 'Server error loading requests.' });
@@ -358,6 +390,25 @@ function register(app, { pool, requireAdmin, getMailer, emailFrom }) {
     } catch (err) {
       console.error('reject failed:', err);
       res.status(500).json({ error: 'Server error rejecting request.' });
+    }
+  });
+
+  // ---------- Admin: delete a request and its codes ----------
+  app.delete('/api/category-changes/:id', requireAdmin, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM change_codes WHERE request_id = $1', [req.params.id]);
+      const { rows } = await client.query('DELETE FROM category_changes WHERE id = $1 RETURNING id', [req.params.id]);
+      if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Request not found.' }); }
+      await client.query('COMMIT');
+      res.json({ ok: true, deleted: rows[0].id });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('delete category change failed:', err);
+      res.status(500).json({ error: 'Server error deleting request.' });
+    } finally {
+      client.release();
     }
   });
 
