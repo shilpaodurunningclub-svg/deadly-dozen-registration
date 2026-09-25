@@ -6,6 +6,11 @@
 <title>Deadly Dozen – Category change</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<script>
+  // Inside the Wix page (an iframe): fit the whole card to the box and scroll inside it,
+  // so the border is never cut off and the button is always visible.
+  try { if (window.self !== window.top) document.documentElement.classList.add('framed'); } catch (e) { document.documentElement.classList.add('framed'); }
+</script>
 <style>
 :root{
   /* Deadly Dozen admin brand (Create Coupon DD) */
@@ -151,6 +156,16 @@ select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--soft)}
 .file button{min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
 .copy{min-height:44px;padding:0 16px;border:1.5px solid var(--primary);border-radius:6px;background:transparent;color:var(--primary);font:inherit;font-weight:600;cursor:pointer;align-self:flex-start}
 .t-code{font-family:var(--mono);font-weight:700;color:var(--primary);background:var(--tint);border-radius:6px;padding:2px 10px;align-self:flex-start;font-size:24px;letter-spacing:.02em;overflow-wrap:anywhere}
+
+/* ---- embedded in the Wix page ---- */
+html.framed, html.framed body { height:100%; overflow:hidden; }
+html.framed body { background:var(--bg); }
+html.framed .app { height:calc(100% - 32px); min-height:0; margin:16px auto; border:1px solid var(--line); border-top:6px solid var(--primary); border-radius:8px; overflow:hidden; }
+html.framed .screen { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+html.framed .foot { position:static; flex-shrink:0; }
+@media (max-width:599px) {
+  html.framed .app { height:100%; margin:0; border-radius:0; border-left:0; border-right:0; border-bottom:0; }
+}
 </style>
 </head>
 <body>
@@ -338,7 +353,7 @@ select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--soft)}
     $('next').textContent = sc.btn;
     $('back').hidden = (S.step===0 || S.step===3);
     $('prog').style.width = [0,50,100,100][S.step] + '%';
-    if (dir) window.scrollTo(0,0);
+    if (dir) { window.scrollTo(0,0); el.scrollTop = 0; }
     if (S.step===2) wireUpload();
     if (S.step===3) document.querySelectorAll('.copy').forEach(function(b){
       b.addEventListener('click', function(){
