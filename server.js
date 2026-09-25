@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const Razorpay = require('razorpay');
 const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
+const categoryChange = require('./category-change');
 require('dns').setDefaultResultOrder('ipv4first'); // Render has no outbound IPv6 route; avoid ENETUNREACH on SMTP
 
 const app = express();
@@ -61,6 +62,8 @@ app.post('/api/razorpay-webhook', express.raw({ type: 'application/json' }), asy
   }
 });
 
+// Category change requests carry a payment receipt (up to 5 MB, ~7 MB as base64).
+app.use('/api/category-change', express.json({ limit: '10mb' }));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -293,6 +296,10 @@ if (EMAIL_USER && EMAIL_PASS) {
 }
 
 async function sendConfirmationEmail(record) {
+  // Every "now paid" path sends this email, so it is also where a Change/Credit code is marked used.
+  if (record && record.id) {
+    await categoryChange.markChangeCodeUsed(pool, record.id).catch(err => console.error('mark change code used failed:', err));
+  }
   const members = record.members || [];
   const lead = members[0];
   const toEmail = lead && lead.email;
@@ -457,6 +464,17 @@ app.post('/api/register', async (req, res) => {
       appliedCoupon = { code: result.coupon.code, percentage: Number(result.coupon.percentage) };
     }
 
+    // Change/Credit code (fixed rupee amount from a category change). Marked used once the registration is paid.
+    let appliedChange = null;
+    if (payload.changeCode) {
+      const result = await categoryChange.checkChangeCode(client, payload.changeCode, payload.category);
+      if (!result.ok) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Change/Credit code problem: ${result.error}` });
+      }
+      appliedChange = { code: result.row.code, amount: Number(result.row.amount), photoCarried: result.row.photo_carried };
+    }
+
     const id = 'DD-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
 
     const { rows } = await client.query(
@@ -482,6 +500,10 @@ app.post('/api/register', async (req, res) => {
       ]
     );
 
+    if (appliedChange) {
+      await client.query('UPDATE registrations SET change_code = $1 WHERE id = $2', [JSON.stringify(appliedChange), id]);
+    }
+
     await client.query('COMMIT');
     res.json({ ok: true, registrationId: id, record: mapRegistrationRow(rows[0]) });
   } catch (err) {
@@ -501,6 +523,32 @@ app.post('/api/create-order', async (req, res) => {
   }
 
   const { registrationId, amountInRupees } = req.body || {};
+
+  // A 100% coupon (e.g. a category change to a cheaper category) leaves nothing to pay.
+  // Razorpay can't take a Rs 0 order, so confirm the registration directly.
+  if (registrationId && Number(amountInRupees || 0) < 1) {
+    try {
+      const { rows } = await pool.query('SELECT * FROM registrations WHERE id = $1', [registrationId]);
+      if (!rows.length) return res.status(404).json({ error: 'Registration not found.' });
+      const reg = rows[0];
+      const coveredByCoupon = reg.coupon && Number(reg.coupon.percentage) === 100;
+      const coveredByChangeCode = !!reg.change_code;
+      if (!coveredByCoupon && !coveredByChangeCode) {
+        return res.status(400).json({ error: 'Amount must be at least ₹1 (100 paise).' });
+      }
+      if (reg.status !== 'paid') {
+        const { rows: updated } = await pool.query(
+          `UPDATE registrations SET status = 'paid', payment_method = 'coupon', paid_at = now() WHERE id = $1 RETURNING *`,
+          [registrationId]);
+        await sendConfirmationEmail(mapRegistrationRow(updated[0]));
+      }
+      return res.json({ ok: true, free: true });
+    } catch (err) {
+      console.error('free registration failed:', err);
+      return res.status(500).json({ error: 'Server error confirming registration.' });
+    }
+  }
+
   if (!registrationId || !amountInRupees) {
     return res.status(400).json({ error: 'registrationId and amountInRupees are required.' });
   }
@@ -1108,7 +1156,16 @@ app.delete('/api/challenge-designs/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// ---------- Category change requests (participant page + admin review) ----------
+categoryChange.register(app, {
+  pool,
+  requireAdmin,
+  getMailer: () => mailTransporter,
+  emailFrom: EMAIL_FROM
+});
+
 ensureSchema()
+  .then(() => categoryChange.ensureSchema(pool))
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Deadly Dozen Registration backend running on http://localhost:${PORT}`);
