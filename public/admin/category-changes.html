@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Category Change Requests — Deadly Dozen Admin</title>
+<style>
+  :root {
+    --red: #a3271f; --red-dark: #7f1e18; --ink: #1c1c1c; --muted: #6b6b6b;
+    --border: #d9d9d9; --card: #f6f5f4; --page: #e9e7e5; --green: #1a7a3a; --amber: #a06a00;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: var(--page); color: var(--ink); }
+  .topbar { height: 6px; background: var(--red); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { color: var(--red); letter-spacing: 1px; font-size: 24px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+  #loginGate { max-width: 420px; margin: 80px auto; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 28px; }
+  #loginGate h2 { margin-top: 0; font-size: 18px; color: var(--red); }
+  #loginGate input { width: 100%; padding: 12px 14px; border-radius: 6px; border: 1px solid var(--border); font-size: 15px; margin-bottom: 12px; }
+  #loginGate button, .btn { padding: 12px; background: var(--red); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 15px; }
+  #loginGate button { width: 100%; }
+  #loginGate button:hover, .btn:hover { background: var(--red-dark); }
+  #loginError { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 16px; }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 22px; margin-bottom: 24px; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 8px; }
+  .tab, .ghost { padding: 9px 16px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-weight: 700; font-size: 14px; cursor: pointer; color: var(--ink); }
+  .tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .counts { color: var(--muted); font-size: 13px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; background: #efedeb; color: var(--muted); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; padding: 12px; white-space: nowrap; }
+  td { padding: 14px 12px; border-bottom: 1px solid #ebe9e7; vertical-align: top; }
+  .code { display: inline-block; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; color: var(--red); background: #f5e3e1; padding: 3px 8px; border-radius: 6px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+  .badge.pending { background: #fbf0d9; color: var(--amber); }
+  .badge.approved { background: #e3f4e8; color: var(--green); }
+  .badge.rejected { background: #f5e3e1; color: var(--red); }
+  .row-btn { display: block; width: 100%; margin-bottom: 6px; padding: 8px 12px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .row-btn.approve { background: var(--green); border-color: var(--green); color: #fff; }
+  .row-btn.reject { color: var(--red); }
+  .row-btn:disabled { opacity: .5; cursor: default; }
+  a.receipt { color: var(--red); font-weight: 700; }
+  #msg { font-size: 13px; min-height: 16px; margin-bottom: 8px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px; }
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+<div class="wrap">
+
+  <div id="loginGate">
+    <h2>DEADLY DOZEN — Category Changes</h2>
+    <p style="font-size:13px; color:var(--muted);">Enter the admin key to review category change requests.</p>
+    <input type="password" id="adminKeyInput" placeholder="Admin key" onkeydown="if(event.key==='Enter') login()">
+    <button onclick="login()">Continue</button>
+    <div id="loginError"></div>
+  </div>
+
+  <div id="mainView" style="display:none;">
+    <h1>Category Change Requests</h1>
+    <p class="subtitle">Check each payment receipt, then approve to switch the participant's Change/Credit codes on (they get an email), or reject to keep them off.</p>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="tabs">
+          <button class="tab on" data-f="pending" onclick="setFilter('pending')">Pending</button>
+          <button class="tab" data-f="approved" onclick="setFilter('approved')">Approved</button>
+          <button class="tab" data-f="rejected" onclick="setFilter('rejected')">Rejected</button>
+          <button class="tab" data-f="all" onclick="setFilter('all')">All</button>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="counts" id="counts"></span>
+          <button class="ghost" onclick="exportCsv()">⬇ Export CSV</button>
+          <button class="ghost" onclick="load()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="msg"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Submitted</th><th>Participant</th><th>Change</th><th>Receipt</th><th>Change code</th><th>Credit code</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let adminKey = '';
+  let all = [];
+  let filter = 'pending';
+  const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+  async function login() {
+    adminKey = document.getElementById('adminKeyInput').value.trim();
+    const res = await fetch('/api/category-changes', { headers: { 'x-admin-key': adminKey } });
+    if (!res.ok) { document.getElementById('loginError').textContent = 'Wrong admin key.'; return; }
+    document.getElementById('loginGate').style.display = 'none';
+    document.getElementById('mainView').style.display = '';
+    all = await res.json();
+    render();
+  }
+
+  async function load() {
+    const res = await fetch('/api/category-changes', { headers: { 'x-admin-key': adminKey } });
+    all = res.ok ? await res.json() : [];
+    render();
+  }
+
+  function setFilter(f) {
+    filter = f;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.f === f));
+    render();
+  }
+
+  function render() {
+    const c = { pending: 0, approved: 0, rejected: 0 };
+    all.forEach(r => { c[r.status] = (c[r.status] || 0) + 1; });
+    document.getElementById('counts').textContent = `${c.pending} pending · ${c.approved} approved · ${c.rejected} rejected`;
+    const list = filter === 'all' ? all : all.filter(r => r.status === filter);
+    const tb = document.getElementById('rows');
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">No requests here.</td></tr>'; return; }
+    tb.innerHTML = list.map(r => `
+      <tr>
+        <td>${new Date(r.createdAt).toLocaleDateString('en-IN')}<div class="muted">${new Date(r.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div></td>
+        <td><b>${esc(r.name)}</b><div class="muted">${esc(r.email)}<br>${esc(r.mobile)} · DOB ${esc(r.dob)}</div></td>
+        <td><b>${esc(r.currentCategory)}</b> → <b>${esc(r.newCategory)}</b>
+            <div class="muted">Paid ${inr(r.currentAmount)}${r.payAtCheckout > 0 ? ' · pays ' + inr(r.payAtCheckout) + ' more' : ''}</div></td>
+        <td><a class="receipt" href="/api/category-changes/${encodeURIComponent(r.id)}/receipt?key=${encodeURIComponent(adminKey)}" target="_blank" rel="noopener">View receipt</a>
+            <div class="muted">${esc(r.receiptName)}</div></td>
+        <td><span class="code">${esc(r.entryCode)}</span>
+            <div class="muted">${inr(r.entryAmount)} · ${r.codeActive ? 'Active' : 'Inactive'}${r.entryUsed ? ' · Used' : ''}</div></td>
+        <td>${r.creditCode ? `<span class="code">${esc(r.creditCode)}</span><div class="muted">${inr(r.creditAmount)} · ${r.codeActive ? 'Active' : 'Inactive'}${r.creditUsed ? ' · Used' : ''}</div>` : '<span class="muted">—</span>'}</td>
+        <td><span class="badge ${r.status}">${r.status[0].toUpperCase() + r.status.slice(1)}</span>
+            ${r.adminNote ? `<div class="muted">${esc(r.adminNote)}</div>` : ''}</td>
+        <td style="min-width:150px">
+          ${r.status !== 'approved' ? `<button class="row-btn approve" onclick="act('${r.id}','approve',this)">Approve &amp; activate</button>` : ''}
+          ${r.status !== 'rejected' ? `<button class="row-btn reject" onclick="act('${r.id}','reject',this)">Reject</button>` : ''}
+        </td>
+      </tr>`).join('');
+  }
+
+  async function act(id, action, btn) {
+    const r = all.find(x => x.id === id);
+    let note = null;
+    if (action === 'reject') {
+      note = prompt(`Reject ${r.name}'s request? Optional reason (it is emailed to them):`, '');
+      if (note === null) return;
+    } else if (!confirm(`Receipt checked? This switches on ${r.entryCode}${r.creditCode ? ' and ' + r.creditCode : ''} and emails ${r.email}.`)) {
+      return;
+    }
+    btn.disabled = true;
+    const res = await fetch(`/api/category-changes/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+      body: JSON.stringify({ note })
+    });
+    const data = await res.json().catch(() => ({}));
+    const msg = document.getElementById('msg');
+    if (res.ok && data.ok) {
+      msg.style.color = 'var(--green)';
+      msg.textContent = action === 'approve' ? `${r.entryCode} is now active and ${r.email} has been emailed.` : `Request rejected; ${r.entryCode} stays inactive.`;
+    } else {
+      msg.style.color = 'var(--red)';
+      msg.textContent = data.error || 'Something went wrong.';
+    }
+    load();
+  }
+
+  async function exportCsv() {
+    const res = await fetch('/api/category-changes/export.csv', { headers: { 'x-admin-key': adminKey } });
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `category-changes-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  }
+</script>
+</body>
+</html>
