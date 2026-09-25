@@ -43,6 +43,16 @@
   .row-btn.reject { color: var(--red); }
   .row-btn:disabled { opacity: .5; cursor: default; }
   a.receipt { color: var(--red); font-weight: 700; }
+  .row-btn.delete { color: var(--muted); }
+  .row-btn.delete.confirm { background: var(--red); border-color: var(--red); color: #fff; }
+  .note { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 12px; margin-bottom: 6px; }
+  .redeemed { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--green); background: #e3f4e8; padding: 2px 8px; border-radius: 999px; }
+  .toggle { margin-top: 6px; padding: 0; border: 0; background: none; color: var(--red); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  tr.details td { background: #faf9f8; padding: 0 12px 16px; }
+  .usage { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 20px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; background: #fff; margin-top: 10px; }
+  .usage h4 { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--red); letter-spacing: .5px; text-transform: uppercase; }
+  .usage dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .usage dd { margin: 2px 0 0; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
   #msg { font-size: 13px; min-height: 16px; margin-bottom: 8px; }
   .empty { text-align: center; color: var(--muted); padding: 30px; }
 </style>
@@ -61,18 +71,12 @@
 
   <div id="mainView" style="display:none;">
     <h1>Category Change Requests</h1>
-    <p class="subtitle">Check each payment receipt, then approve to switch the participant's Change/Credit codes on (they get an email), or reject to keep them off.</p>
+    <p class="subtitle">Check each payment receipt, then approve to switch the participant's Change/Credit codes on (they get an email), or reject to keep them off. Requests stay on this list until you delete them.</p>
 
     <div class="card">
       <div class="toolbar">
-        <div class="tabs">
-          <button class="tab on" data-f="pending" onclick="setFilter('pending')">Pending</button>
-          <button class="tab" data-f="approved" onclick="setFilter('approved')">Approved</button>
-          <button class="tab" data-f="rejected" onclick="setFilter('rejected')">Rejected</button>
-          <button class="tab" data-f="all" onclick="setFilter('all')">All</button>
-        </div>
+        <div class="counts" id="counts" style="font-size:14px;"></div>
         <div style="display:flex; gap:8px; align-items:center;">
-          <span class="counts" id="counts"></span>
           <button class="ghost" onclick="exportCsv()">⬇ Export CSV</button>
           <button class="ghost" onclick="load()">↻ Refresh</button>
         </div>
@@ -93,9 +97,12 @@
 <script>
   let adminKey = '';
   let all = [];
-  let filter = 'pending';
+  const open = new Set();          // rows with redemption details shown
+  const confirming = new Set();    // rows waiting for a second click on Delete
+  const notes = {};                // typed rejection reasons, kept across refreshes
   const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const when = d => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
   async function login() {
     adminKey = document.getElementById('adminKeyInput').value.trim();
@@ -113,20 +120,40 @@
     render();
   }
 
-  function setFilter(f) {
-    filter = f;
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.f === f));
-    render();
+  function say(text, ok) {
+    const msg = document.getElementById('msg');
+    msg.style.color = ok ? 'var(--green)' : 'var(--red)';
+    msg.textContent = text;
+  }
+
+  function usageBlock(title, u) {
+    if (!u) return '';
+    return `<dl class="usage"><h4>${esc(title)}</h4>
+      <div><dt>Name</dt><dd>${esc(u.name || '—')}</dd></div>
+      <div><dt>Email</dt><dd>${esc(u.email || '—')}</dd></div>
+      <div><dt>Mobile</dt><dd>${esc(u.phone || '—')}</dd></div>
+      <div><dt>Registration code</dt><dd>${esc(u.registrationCode || '—')}</dd></div>
+      <div><dt>Registered for</dt><dd>${esc(u.category || '—')}</dd></div>
+      <div><dt>Code applied</dt><dd>${u.codeAmount != null ? inr(u.codeAmount) : '—'}</dd></div>
+      <div><dt>Amount paid</dt><dd>${u.amountPaid != null ? inr(u.amountPaid) : '—'}</dd></div>
+      <div><dt>Redeemed on</dt><dd>${when(u.usedAt || u.paidAt)}</dd></div>
+      <div><dt>Registration ID</dt><dd class="muted" style="font-weight:400">${esc(u.registrationId)}</dd></div>
+    </dl>`;
   }
 
   function render() {
     const c = { pending: 0, approved: 0, rejected: 0 };
     all.forEach(r => { c[r.status] = (c[r.status] || 0) + 1; });
-    document.getElementById('counts').textContent = `${c.pending} pending · ${c.approved} approved · ${c.rejected} rejected`;
-    const list = filter === 'all' ? all : all.filter(r => r.status === filter);
+    const redeemed = all.filter(r => r.entryUsed).length;
+    document.getElementById('counts').textContent =
+      `${all.length} requests · ${c.pending} pending · ${c.approved} approved · ${c.rejected} rejected · ${redeemed} redeemed`;
     const tb = document.getElementById('rows');
-    if (!list.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">No requests here.</td></tr>'; return; }
-    tb.innerHTML = list.map(r => `
+    if (!all.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">No requests yet.</td></tr>'; return; }
+
+    tb.innerHTML = all.map(r => {
+      const anyUsed = r.entryUsed || r.creditUsed;
+      const isOpen = open.has(r.id);
+      const main = `
       <tr>
         <td>${new Date(r.createdAt).toLocaleDateString('en-IN')}<div class="muted">${new Date(r.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div></td>
         <td><b>${esc(r.name)}</b><div class="muted">${esc(r.email)}<br>${esc(r.mobile)} · DOB ${esc(r.dob)}</div></td>
@@ -135,41 +162,67 @@
         <td><a class="receipt" href="/api/category-changes/${encodeURIComponent(r.id)}/receipt?key=${encodeURIComponent(adminKey)}" target="_blank" rel="noopener">View receipt</a>
             <div class="muted">${esc(r.receiptName)}</div></td>
         <td><span class="code">${esc(r.entryCode)}</span>
-            <div class="muted">${inr(r.entryAmount)} · ${r.codeActive ? 'Active' : 'Inactive'}${r.entryUsed ? ' · Used' : ''}</div></td>
-        <td>${r.creditCode ? `<span class="code">${esc(r.creditCode)}</span><div class="muted">${inr(r.creditAmount)} · ${r.codeActive ? 'Active' : 'Inactive'}${r.creditUsed ? ' · Used' : ''}</div>` : '<span class="muted">—</span>'}</td>
+            <div class="muted">${inr(r.entryAmount)} · ${r.codeActive ? 'Active' : 'Inactive'}</div>
+            ${r.entryUsed ? '<span class="redeemed">✓ Redeemed</span>' : ''}</td>
+        <td>${r.creditCode
+              ? `<span class="code">${esc(r.creditCode)}</span><div class="muted">${inr(r.creditAmount)} · ${r.codeActive ? 'Active' : 'Inactive'}</div>${r.creditUsed ? '<span class="redeemed">✓ Redeemed</span>' : ''}`
+              : '<span class="muted">—</span>'}
+            ${anyUsed ? `<div><button class="toggle" onclick="toggleUsage('${r.id}')">${isOpen ? '▾ Hide redemption details' : '▸ Show redemption details'}</button></div>` : ''}</td>
         <td><span class="badge ${r.status}">${r.status[0].toUpperCase() + r.status.slice(1)}</span>
             ${r.adminNote ? `<div class="muted">${esc(r.adminNote)}</div>` : ''}</td>
-        <td style="min-width:150px">
+        <td style="min-width:170px">
           ${r.status !== 'approved' ? `<button class="row-btn approve" onclick="act('${r.id}','approve',this)">Approve &amp; activate</button>` : ''}
-          ${r.status !== 'rejected' ? `<button class="row-btn reject" onclick="act('${r.id}','reject',this)">Reject</button>` : ''}
+          ${r.status !== 'rejected' ? `<input class="note" id="note-${r.id}" placeholder="Reason (optional, emailed)" value="${esc(notes[r.id] || '')}" oninput="notes['${r.id}']=this.value">
+            <button class="row-btn reject" onclick="act('${r.id}','reject',this)">Reject</button>` : ''}
+          ${confirming.has(r.id)
+            ? `<button class="row-btn delete confirm" onclick="del('${r.id}',this)">Yes, delete permanently</button>
+               <button class="row-btn" onclick="cancelDelete('${r.id}')">Keep</button>`
+            : `<button class="row-btn delete" onclick="askDelete('${r.id}')">Delete</button>`}
         </td>
-      </tr>`).join('');
+      </tr>`;
+      const details = anyUsed && isOpen
+        ? `<tr class="details"><td colspan="8">${usageBlock('Change code redeemed by', r.entryUsage)}${usageBlock('Credit code redeemed by', r.creditUsage)}</td></tr>`
+        : '';
+      return main + details;
+    }).join('');
   }
+
+  function toggleUsage(id) { open.has(id) ? open.delete(id) : open.add(id); render(); }
+  function askDelete(id) {
+    confirming.add(id); render();
+    setTimeout(() => { if (confirming.delete(id)) render(); }, 6000);
+  }
+  function cancelDelete(id) { confirming.delete(id); render(); }
 
   async function act(id, action, btn) {
     const r = all.find(x => x.id === id);
-    let note = null;
-    if (action === 'reject') {
-      note = prompt(`Reject ${r.name}'s request? Optional reason (it is emailed to them):`, '');
-      if (note === null) return;
-    } else if (!confirm(`Receipt checked? This switches on ${r.entryCode}${r.creditCode ? ' and ' + r.creditCode : ''} and emails ${r.email}.`)) {
-      return;
-    }
     btn.disabled = true;
+    const note = action === 'reject' ? (notes[id] || '').trim() : null;
     const res = await fetch(`/api/category-changes/${encodeURIComponent(id)}/${action}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
-      body: JSON.stringify({ note })
+      body: JSON.stringify({ note: note || null })
     });
     const data = await res.json().catch(() => ({}));
-    const msg = document.getElementById('msg');
     if (res.ok && data.ok) {
-      msg.style.color = 'var(--green)';
-      msg.textContent = action === 'approve' ? `${r.entryCode} is now active and ${r.email} has been emailed.` : `Request rejected; ${r.entryCode} stays inactive.`;
+      delete notes[id];
+      say(action === 'approve'
+        ? `${r.name}: ${r.entryCode}${r.creditCode ? ' and ' + r.creditCode : ''} switched on and emailed to ${r.email}.`
+        : `${r.name}: request rejected, codes switched off, ${r.email} emailed.`, true);
     } else {
-      msg.style.color = 'var(--red)';
-      msg.textContent = data.error || 'Something went wrong.';
+      say(data.error || 'Something went wrong.', false);
     }
+    load();
+  }
+
+  async function del(id, btn) {
+    const r = all.find(x => x.id === id);
+    btn.disabled = true;
+    const res = await fetch(`/api/category-changes/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'x-admin-key': adminKey } });
+    const data = await res.json().catch(() => ({}));
+    confirming.delete(id); open.delete(id);
+    if (res.ok && data.ok) say(`${r.name}'s request and codes were deleted.`, true);
+    else say(data.error || 'Could not delete.', false);
     load();
   }
 
