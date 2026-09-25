@@ -155,6 +155,12 @@
       <div class="detail-row" id="qpDiscountRow" style="display:none; color:var(--red);">
         <span id="qpDiscountLabel">Discount</span><span id="qpDiscountAmount">-₹0</span>
       </div>
+      <div class="detail-row" id="qpChangeRow" style="display:none; color:var(--green);">
+        <span id="qpChangeLabel">Change/Credit code</span><span id="qpChangeAmount">-₹0</span>
+      </div>
+      <div class="detail-row" id="qpPhotoCarriedRow" style="display:none; color:var(--green);">
+        <span>Race Photo bundle (carried over)</span><span>₹0</span>
+      </div>
       <div class="detail-row total"><span>Total payable</span><span id="qpTotalAmount">—</span></div>
     </div>
 
@@ -165,6 +171,15 @@
         <button type="button" onclick="applyQuickPayCoupon()" style="padding:0 16px; border-radius:6px; border:1px solid var(--red); background:#fff; color:var(--red); font-weight:700; cursor:pointer;">Apply</button>
       </div>
       <div id="qpCouponMsg" style="font-size:13px; margin-top:6px;"></div>
+    </div>
+
+    <div class="field">
+      <label for="qpChangeCode">Have you got a Change/Credit code?</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="qpChangeCode" style="text-transform:uppercase; flex:1;" placeholder="e.g. SOLO-PRIYA-4821">
+        <button type="button" onclick="applyChangeCode()" style="padding:0 16px; border-radius:6px; border:1px solid var(--red); background:#fff; color:var(--red); font-weight:700; cursor:pointer;">Apply</button>
+      </div>
+      <div id="qpChangeMsg" style="font-size:13px; margin-top:6px;"></div>
     </div>
 
     <div class="field">
@@ -276,6 +291,7 @@
   const RACE_PHOTO_PRICE = 1500;
   let qpAppliedCouponCode = null;
   let qpDiscountPercent = 0;
+  let qpChange = null; // { code, amount, kind, photoCarried }
 
   function showQuickPayForm(catKey) {
     document.getElementById('loadingState').style.display = 'none';
@@ -291,9 +307,12 @@
     const entryFee = Math.round(baseFee * (1 + GST_RATE / 100)); // GST-inclusive fee shown to the user (e.g. Solo = 4719)
     const discountValue = qpDiscountPercent > 0 ? Math.round(entryFee * qpDiscountPercent / 100) : 0;
     const discountedEntryFee = entryFee - discountValue;
-    const racePhoto = document.getElementById('qpRacePhoto').checked ? RACE_PHOTO_PRICE : 0;
-    const total = TEST_MODE ? 1 : (discountedEntryFee + racePhoto);
-    return { entryFee, discountValue, racePhoto, total };
+    // Change/Credit code: a fixed rupee amount, taken off after the % coupon, never below 0
+    const changeValue = qpChange ? Math.min(qpChange.amount, discountedEntryFee) : 0;
+    const photoCarried = !!(qpChange && qpChange.photoCarried);
+    const racePhoto = (!photoCarried && document.getElementById('qpRacePhoto').checked) ? RACE_PHOTO_PRICE : 0;
+    const total = TEST_MODE ? 1 : (discountedEntryFee - changeValue + racePhoto);
+    return { entryFee, discountValue, changeValue, photoCarried, racePhoto, total };
   }
 
   function updateQuickPayTotal() {
@@ -309,7 +328,56 @@
       discountRow.style.display = 'none';
     }
 
+    const t = getQuickPayTotals();
+    const changeRow = document.getElementById('qpChangeRow');
+    if (qpChange) {
+      changeRow.style.display = '';
+      document.getElementById('qpChangeLabel').textContent = `${qpChange.kind === 'credit' ? 'Credit' : 'Change'} code (${qpChange.code})`;
+      document.getElementById('qpChangeAmount').textContent = '-₹' + t.changeValue.toLocaleString('en-IN');
+    } else {
+      changeRow.style.display = 'none';
+    }
+    const photoBox = document.getElementById('qpRacePhoto');
+    photoBox.disabled = t.photoCarried;
+    if (t.photoCarried) photoBox.checked = true;
+    document.getElementById('qpPhotoCarriedRow').style.display = t.photoCarried ? '' : 'none';
+
     document.getElementById('qpTotalAmount').textContent = '₹' + total.toLocaleString('en-IN') + (TEST_MODE ? ' (TEST)' : '');
+  }
+
+  async function applyChangeCode() {
+    const input = document.getElementById('qpChangeCode');
+    const msgEl = document.getElementById('qpChangeMsg');
+    const code = input.value.trim().toUpperCase();
+    msgEl.textContent = '';
+    msgEl.style.color = '';
+    const hadPhotoCarried = !!(qpChange && qpChange.photoCarried);
+    qpChange = null;
+    if (hadPhotoCarried) document.getElementById('qpRacePhoto').checked = false;
+    if (!code) { updateQuickPayTotal(); return; }
+
+    try {
+      const res = await fetch('/api/validate-change-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, category: quickCategory })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        msgEl.textContent = data.error || 'Invalid Change/Credit code.';
+        msgEl.style.color = 'var(--red)';
+        updateQuickPayTotal();
+        return;
+      }
+      qpChange = { code: data.code, amount: data.amount, kind: data.kind, photoCarried: data.photoCarried };
+      msgEl.textContent = `"${data.code}" applied — ₹${data.amount.toLocaleString('en-IN')} off` +
+        (data.photoCarried ? ', Race Photo bundle included.' : '.');
+      msgEl.style.color = 'var(--green)';
+      updateQuickPayTotal();
+    } catch (e) {
+      msgEl.textContent = 'Could not reach the server to check this code.';
+      msgEl.style.color = 'var(--red)';
+    }
   }
 
   async function applyQuickPayCoupon() {
@@ -390,8 +458,13 @@
     msgEl.className = 'status-msg';
 
     const info = QUICK_PAY_CATEGORIES[quickCategory];
-    const { racePhoto, total } = getQuickPayTotals();
-    const categoryLabelFull = info.label + (racePhoto ? ' + Race Photo' : '') + (qpDiscountPercent > 0 ? ` (${qpAppliedCouponCode} -${qpDiscountPercent}%)` : '') + (TEST_MODE ? ' (TEST)' : '');
+    const { racePhoto, photoCarried, changeValue, total } = getQuickPayTotals();
+    const categoryLabelFull = info.label
+      + (racePhoto ? ' + Race Photo' : '')
+      + (photoCarried ? ' + Race Photo (carried over)' : '')
+      + (qpDiscountPercent > 0 ? ` (${qpAppliedCouponCode} -${qpDiscountPercent}%)` : '')
+      + (qpChange ? ` (${qpChange.code} -₹${changeValue})` : '')
+      + (TEST_MODE ? ' (TEST)' : '');
 
     try {
       const regRes = await fetch('/api/register', {
@@ -406,6 +479,7 @@
           gstAmount: 0,
           totalAmount: total,
           couponCode: qpAppliedCouponCode || undefined,
+          changeCode: qpChange ? qpChange.code : undefined,
           registrationCode
         })
       });
@@ -449,6 +523,13 @@
         msgEl.textContent = orderData.error || 'Could not start payment.';
         msgEl.className = 'status-msg error';
         btn.disabled = false;
+        return;
+      }
+      if (orderData.free) {
+        document.getElementById('payState').style.display = 'none';
+        document.getElementById('quickPayState').style.display = 'none';
+        document.getElementById('alreadyPaidState').style.display = '';
+        document.querySelector('.paid-badge').textContent = '✓ Registration confirmed (coupon)';
         return;
       }
 

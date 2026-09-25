@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deadly Dozen – Category change</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<style>
+:root{
+  /* Deadly Dozen admin brand (Create Coupon DD) */
+  --bg:#e9e7e5; --surface:#FFFFFF; --card:#FFFFFF; --ink:#1c1c1c; --muted:#6b6b6b; --line:#d9d9d9;
+  --primary:#a3271f; --primary-dark:#7f1e18; --primary-ink:#FFFFFF; --soft:#f6f5f4; --tint:#f5e3e1;
+  --gold-bg:#f6f5f4; --gold:#1c1c1c; --error:#a3271f; --green:#1a7a3a;
+  --font:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --display:var(--font);
+  --mono:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--surface);border-top:6px solid var(--primary)}
+@media (min-width:600px){.app{margin:24px auto;min-height:0;border:1px solid var(--line);border-top:6px solid var(--primary);border-radius:8px;overflow:hidden}}
+
+.bar{display:flex;align-items:center;gap:12px;padding:14px 16px;min-height:64px}
+.back{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.back[hidden]{display:none}
+.bar-title{font-weight:500;font-size:14px;color:var(--muted);flex:1}
+.progress{height:4px;background:var(--line);margin:0 16px;border-radius:6px;overflow:hidden}
+.progress>i{display:block;height:100%;background:var(--primary);width:0;transition:width .35s ease}
+
+.screen{padding:24px 20px 28px;flex:1;display:flex;flex-direction:column;gap:20px}
+.screen.enter{animation:slide .32s ease both}
+.screen.enter-back{animation:slideBack .32s ease both}
+@keyframes slide{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes slideBack{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.screen.enter,.screen.enter-back{animation:none}.progress>i{transition:none}}
+
+h1{font-weight:800;font-size:30px;line-height:1.15;letter-spacing:1px;color:var(--primary);margin:0}
+h2{font-weight:700;font-size:24px;line-height:1.2;color:var(--primary);margin:0}
+h3{font-weight:600;font-size:17px;margin:0}
+.lead{color:var(--muted);margin:0;font-size:16px}
+.race{font-weight:700;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0}
+
+.ready{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.ready li{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line)}
+.ready svg{flex-shrink:0;margin-top:2px;color:var(--primary)}
+.ready b{display:block;font-weight:600}
+.ready span{color:var(--muted);font-size:14px}
+.deadline{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:14px 16px;background:var(--soft);border-radius:6px;font-size:14px}
+.deadline strong{font-size:16px}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field label,.group-label{font-weight:600;font-size:15px}
+.hint{font-size:13px;color:var(--muted)}
+.optional{font-weight:400;color:var(--muted)}
+input[type=text],input[type=email],input[type=tel],input[type=date],textarea{
+  width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--card);
+  border:1.5px solid var(--line);border-radius:6px;padding:13px 14px;min-height:52px;outline:none;transition:border-color .15s}
+textarea{min-height:88px;resize:vertical}
+input:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--soft)}
+.field.invalid input,.field.invalid textarea{border-color:var(--error)}
+.err{color:var(--error);font-size:13px;font-weight:500;display:none}
+.field.invalid .err,.group.invalid .err{display:block}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tel{position:relative}
+.tel span{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.tel input{padding-left:52px}
+
+.group{display:flex;flex-direction:column;gap:10px;border:0;margin:0;padding:0;min-width:0}
+.cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cat{position:relative}
+.cat input{position:absolute;opacity:0;pointer-events:none}
+.cat label{display:flex;flex-direction:column;gap:2px;padding:12px 10px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer;min-height:92px;transition:border-color .15s,background .15s}
+.cat .d{font-weight:700;font-size:16px;letter-spacing:.5px;text-transform:uppercase;color:var(--primary)}
+.cat .l{font-size:12px;color:var(--muted)}
+.cat .p{font-size:13px;font-weight:600;margin-top:auto}
+.cat input:checked+label{border-color:var(--primary);background:var(--soft)}
+.cat input:focus-visible+label{outline:3px solid var(--primary);outline-offset:2px}
+.cat input:disabled+label{opacity:.4;cursor:not-allowed}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;pointer-events:none}
+.chip label{display:inline-flex;align-items:center;min-height:44px;min-width:52px;justify-content:center;padding:0 16px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer;font-weight:500;font-size:15px}
+.chip input:checked+label{border-color:var(--primary);background:var(--primary);color:var(--primary-ink)}
+.chip input:focus-visible+label{outline:3px solid var(--primary);outline-offset:2px}
+
+.price{background:var(--gold-bg);color:var(--gold);border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:14px}
+.price strong{display:block;font-size:20px;font-weight:700}
+.warn{border:1.5px solid var(--primary);border-radius:6px;padding:12px 14px;font-size:14px}
+
+.team{display:flex;flex-direction:column;gap:14px;padding:16px;border:1.5px solid var(--line);border-radius:6px;background:var(--card)}
+.mate{display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid var(--line)}
+.mate-h{font-weight:600;font-size:14px;color:var(--muted)}
+
+.check{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer}
+.check input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--primary);flex-shrink:0}
+.check.invalid{border-color:var(--error)}
+.check small{display:block;color:var(--muted);font-size:13px;margin-top:4px}
+
+.summary{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px}
+.summary dt{color:var(--muted)}
+.summary dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+
+/* race ticket, echoing the site's category cards */
+.ticket{position:relative;display:flex;background:var(--soft);color:var(--ink);border-radius:6px;overflow:hidden;border-left:6px solid var(--primary)}
+.ticket-main{flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.ticket-stub{width:96px;border-left:2px dashed #BDBDBD;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 8px;text-align:center;gap:2px}
+.ticket::before,.ticket::after{content:"";position:absolute;right:88px;width:18px;height:18px;border-radius:50%;background:var(--surface)}
+.ticket::before{top:-9px}.ticket::after{bottom:-9px}
+.t-race{font-weight:700;font-size:12px;color:var(--primary);text-transform:uppercase;letter-spacing:1px}
+.t-big{font-family:var(--display);font-weight:600;font-size:28px;line-height:1.1;text-transform:uppercase}
+.t-move{display:flex;align-items:center;gap:8px;font-family:var(--display);font-weight:600;font-size:20px;text-transform:uppercase;flex-wrap:wrap}
+.t-move s{color:var(--muted);text-decoration-thickness:2px}
+.t-move span{color:var(--primary)}
+.t-sub{font-size:13px;color:var(--muted)}
+.t-stub-s{font-size:11px;color:var(--muted)}
+.t-stub-b{font-family:var(--display);font-weight:600;font-size:16px;color:var(--ink);overflow-wrap:anywhere}
+
+.foot{padding:16px 20px calc(20px + env(safe-area-inset-bottom,0px));position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line)}
+.btn{width:100%;min-height:56px;border:0;border-radius:6px;background:var(--primary);color:var(--primary-ink);font:inherit;font-weight:700;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn:hover{background:var(--primary-dark)}
+.btn:focus-visible,.back:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.btn[disabled]{opacity:.6;cursor:progress}
+.spinner{width:18px;height:18px;border-radius:50%;border:2.5px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.notice{font-size:14px;padding:12px 14px;border-radius:6px;background:var(--soft);color:var(--ink)}
+.notice.error{background:transparent;border:1.5px solid var(--error);color:var(--error)}
+.done-icon{width:64px;height:64px;border-radius:50%;background:var(--green);color:var(--primary-ink);display:grid;place-items:center}
+a{color:var(--primary)}
+
+select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:6px;padding:13px 40px 13px 14px;min-height:52px;outline:none;appearance:none;-webkit-appearance:none;
+
+.sel{position:relative}
+.sel::after{content:"";position:absolute;right:18px;top:50%;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--soft)}
+.field.invalid select{border-color:var(--error)}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:28px 16px;border:2px dashed var(--line);border-radius:6px;background:var(--card);cursor:pointer;min-height:160px}
+.drop:hover,.drop.over{border-color:var(--primary);background:var(--soft)}
+.drop svg{color:var(--primary)}
+.drop b{font-weight:600}
+.field.invalid .drop{border-color:var(--error)}
+.file{display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid var(--primary);border-radius:6px;background:var(--card)}
+.file img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0}
+.file .ph{width:56px;height:56px;border-radius:8px;background:var(--soft);color:var(--primary);display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0}
+.file .meta{flex:1;min-width:0;font-size:14px}
+.file .meta b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file button{min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.copy{min-height:44px;padding:0 16px;border:1.5px solid var(--primary);border-radius:6px;background:transparent;color:var(--primary);font:inherit;font-weight:600;cursor:pointer;align-self:flex-start}
+.t-code{font-family:var(--mono);font-weight:700;color:var(--primary);background:var(--tint);border-radius:6px;padding:2px 10px;align-self:flex-start;font-size:24px;letter-spacing:.02em;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <button class="back" id="back" type="button" aria-label="Go back" hidden>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="bar-title" id="barTitle">Category change</div>
+  </div>
+  <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+  <main id="screen" class="screen" aria-live="polite"></main>
+  <div class="foot"><button class="btn" id="next" type="button">Start</button></div>
+</div>
+<script>
+(function(){
+  var CONFIG = {
+    raceName: 'Deadly Dozen',
+    raceDate: '28 November 2026',
+    supportEmail: 'india@deadlydozen.in',
+    categories: [ {name:'Solo', price:4719}, {name:'Pairs', price:5899}, {name:'Relay', price:8259} ],
+    creditUse: 'a future Deadly Dozen event or a friend\u2019s entry',
+    creditValidity: '12 months',
+    photoPrice: 1500,
+    maxReceiptMB: 5
+  };
+  // Served by the Deadly Dozen backend itself; requests go to /api/category-change.
+  var hasBackend = !/claude\.ai|claudeusercontent/.test(location.hostname);
+  function call(action, fnName, data, ok, fail){
+    if (action !== 'submit') return;
+    fetch('/api/category-change', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(data) })
+      .then(function(r){ return r.json().then(function(j){ return { status:r.status, j:j }; }); })
+      .then(function(x){ if (x.j && x.j.ok) ok(x.j.result); else fail(new Error((x.j && x.j.error) || 'server error')); })
+      .catch(function(){ fail(new Error('connection problem')); });
+  }
+
+  var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var TYPES = /^(image\/(png|jpe?g|webp|heic|heif)|application\/pdf)$/;
+
+  function blank(){ return { category:'', newCategory:'', email:'', name:'', mobile:'', dob:'', receipt:null, confirm:false }; }
+  var S = { step:0, data:blank(), result:null, preview:'' };
+
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function cat(n){ return CONFIG.categories.filter(function(x){return x.name===n;})[0]; }
+  function inr(n){ return '₹' + Number(n).toLocaleString('en-IN'); }
+  function entryOf(value, forcePhoto){
+    var parts = String(value || '').split('+'), c = cat(parts[0]);
+    if (!c || (parts[1] && parts[1] !== 'Photo')) return null;
+    var photo = forcePhoto === undefined ? parts[1] === 'Photo' : forcePhoto;
+    return { name:c.name, photo:photo, label:c.name + (photo ? ' + Photo' : ''), total:c.price + (photo ? CONFIG.photoPrice : 0) };
+  }
+  function curEntry(){ return entryOf(S.data.category); }
+  function newEntry(){ var c = curEntry(); return c && S.data.newCategory ? entryOf(S.data.newCategory, c.photo) : null; }
+  function plan(){
+    var c = curEntry(), n = newEntry();
+    if (!c || !n || c.name === n.name) return null;
+    var diff = n.total - c.total;
+    var cp = cat(c.name).price, np = cat(n.name).price;
+    return diff > 0 ? { entryAmount:cp, payAtCheckout:diff, creditAmount:0 } : { entryAmount:np, payAtCheckout:0, creditAmount:-diff };
+  }
+  function planHtml(){
+    var p = plan(), d = S.data; if (!p) return '';
+    var h = '<div class="price"><strong>You will get</strong>' +
+      '<b>Change code · ' + inr(p.entryAmount) + '</b> towards ' + esc(newEntry().name) + ' ';
+    h += p.payAtCheckout > 0
+      ? '· you pay the remaining <b>' + inr(p.payAtCheckout) + '</b> at checkout.'
+      : '· covers your full ' + esc(newEntry().name) + ' entry.';
+    if (newEntry().photo) h += ' Your photo package carries over free.';
+    if (p.creditAmount > 0) h += '<br><b>Credit code · ' + inr(p.creditAmount) + '</b> for the extra you paid. Use it for ' + esc(CONFIG.creditUse) + ' within ' + esc(CONFIG.creditValidity) + '.';
+    return h + '</div>';
+  }
+  function size(b){ return b > 1048576 ? (b/1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b/1024)) + ' KB'; }
+
+  var I = function(p){ return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; };
+  var ICON = {
+    flag: I('<path d="M5 21V4h11l-2 4 2 4H5"/>'),
+    mail: I('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'),
+    user: I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>'),
+    receipt: I('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
+    upload: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>',
+    check: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>'
+  };
+
+  function ticket(main, stubSmall, stubBig){
+    return '<div class="ticket"><div class="ticket-main"><div class="t-race">' + esc(CONFIG.raceName) + '</div>' + main + '</div>' +
+      '<div class="ticket-stub"><div class="t-stub-s">' + stubSmall + '</div><div class="t-stub-b">' + stubBig + '</div></div></div>';
+  }
+  function field(id,label,type,val,err,ac,extra){
+    return '<div class="field" id="f-' + id + '"><label for="' + id + '">' + label + '</label>' +
+      '<input id="' + id + '" type="' + type + '" value="' + esc(val) + '"' + (ac?' autocomplete="' + ac + '"':'') + (extra||'') + '>' +
+      '<div class="err">' + err + '</div></div>';
+  }
+
+  var screens = [
+    { title:'Category change', btn:'Start', render:function(){
+      return '<p class="race">' + esc(CONFIG.raceName) + ' · ' + esc(CONFIG.raceDate) + '</p>' +
+        '<h1>Change your race category</h1>' +
+        '<p class="lead">Already registered and want to switch between Solo, Pairs and Relay? Send a request here. You will receive a coupon code.</p>' +
+        ticket('<div class="t-big">Solo · Pairs · Relay</div><div class="t-sub">Your payment moves to your new category</div>', 'Race day', '28/11') +
+        '<ul class="ready">' +
+          '<li>' + ICON.flag + '<div><b>Your current and new category</b><span>Solo, Pairs or Relay, with or without photo</span></div></li>' +
+          '<li>' + ICON.mail + '<div><b>Registered email</b><span>The one you used to sign up</span></div></li>' +
+          '<li>' + ICON.user + '<div><b>Registered name, mobile and date of birth</b><span>Exactly as registered</span></div></li>' +
+          '<li>' + ICON.receipt + '<div><b>Payment receipt</b><span>Photo, screenshot or PDF, up to ' + CONFIG.maxReceiptMB + ' MB</span></div></li>' +
+        '</ul>';
+    }},
+    { title:'Step 1 of 2 · Your registration', btn:'Continue', render:function(){
+      var d = S.data;
+      return '<h2>Your registration</h2><p class="lead">Use the same details you registered with.</p>' +
+        '<div class="field" id="f-category"><label for="category">Current category</label><div class="sel"><select id="category">' +
+          '<option value="">Select your category</option>' +
+          [false, true].map(function(ph){ return CONFIG.categories.map(function(c){ var e = entryOf(c.name, ph), val = c.name + (ph ? '+Photo' : '');
+            return '<option value="' + esc(val) + '"' + (d.category===val?' selected':'') + '>' + esc(e.label.toUpperCase()) + ' · ' + inr(e.total) + '</option>'; }).join(''); }).join('') +
+        '</select></div><div class="err">Choose the category you registered for.</div></div>' +
+        '<div class="field" id="f-newCategory"><label for="newCategory">Change to</label><div class="sel"><select id="newCategory">' +
+          '<option value="">Select your new category</option>' +
+          CONFIG.categories.map(function(c){ var ce = curEntry(), cur = !!ce && ce.name===c.name, e = entryOf(c.name, ce ? ce.photo : false);
+            return '<option value="' + esc(c.name) + '"' + (d.newCategory===c.name && !cur?' selected':'') + (cur?' disabled':'') + '>' + esc(e.label.toUpperCase()) + ' · ' + inr(e.total) + (cur?' (current)':'') + '</option>'; }).join('') +
+        '</select></div>' + (curEntry() && curEntry().photo ? '<div class="hint">Your photo package (' + inr(CONFIG.photoPrice) + ') moves with you.</div>' : '') + '<div class="err">Choose a category different from your current one.</div></div>' +
+        '<div id="planBox">' + planHtml() + '</div>' +
+        field('email','Registered email','email', d.email, 'Enter the email you registered with.', 'email') +
+        field('name','Registered name','text', d.name, 'Enter your name as registered.', 'name') +
+        '<div class="field" id="f-mobile"><label for="mobile">Mobile number</label>' +
+          '<div class="tel"><span>+91</span><input id="mobile" type="tel" inputmode="numeric" maxlength="10" autocomplete="tel-national" value="' + esc(d.mobile) + '"></div>' +
+          '<div class="hint">10 digits, without country code or 0</div><div class="err">Enter a 10-digit mobile number starting with 6, 7, 8 or 9.</div></div>' +
+        field('dob','Date of birth','date', d.dob, 'Enter your date of birth.', 'bday');
+    }},
+    { title:'Step 2 of 2 · Payment receipt', btn:'Get coupon code', render:function(){
+      var d = S.data, r = d.receipt, c = curEntry();
+      var box = r
+        ? '<div class="file">' + (S.preview ? '<img src="' + S.preview + '" alt="">' : '<div class="ph">PDF</div>') +
+          '<div class="meta"><b>' + esc(r.name) + '</b>' + size(r.size) + '</div><button type="button" id="removeFile">Remove</button></div>'
+        : '<label class="drop" id="drop" for="file">' + ICON.upload + '<b>Upload payment receipt</b><span class="hint">Tap to choose a photo, screenshot or PDF (max ' + CONFIG.maxReceiptMB + ' MB)</span></label>';
+      return '<h2>Upload your payment receipt</h2><p class="lead">The receipt for your ' + (c ? esc(c.label) + ' entry (' + inr(c.total) + ')' : 'entry') + '.</p>' +
+        '<div class="field" id="f-file">' + box +
+          '<input id="file" type="file" accept="image/*,application/pdf" style="position:absolute;width:1px;height:1px;opacity:0">' +
+          '<div class="err" id="fileErr">Upload your payment receipt.</div></div>' +
+        '<label class="check" id="c-confirm"><input type="checkbox" id="confirm"' + (d.confirm?' checked':'') + '><span>These details match my registration and the receipt is mine</span></label>' +
+        '<div id="submitMsg"></div>';
+    }},
+    { title:'Coupon code', btn:'Done', render:function(){
+      var d = S.data, res = S.result, nc = res.newCategory || (newEntry() ? newEntry().label : d.newCategory);
+      var h = '<div class="done-icon">' + ICON.check + '</div>' +
+        '<h2>' + (res.existing ? 'You already have your codes' : (res.creditCode ? 'Here are your codes' : 'Here is your Change code')) + '</h2>' +
+        ticket('<div class="t-sub">Change code · ' + esc(nc) + '</div><div class="t-code">' + esc(res.entryCode) + '</div><div class="t-sub">' +
+          (res.payAtCheckout > 0 ? 'Pay ' + inr(res.payAtCheckout) + ' more at checkout' : 'Covers your full entry') + '</div>', 'Value', inr(res.entryAmount)) +
+        '<button type="button" class="copy" data-code="' + esc(res.entryCode) + '">Copy Change code</button>';
+      if (res.creditCode) {
+        h += ticket('<div class="t-sub">Balance credit</div><div class="t-code">' + esc(res.creditCode) + '</div><div class="t-sub">For ' + esc(CONFIG.creditUse) + '</div>', 'Value', inr(res.creditAmount)) +
+          '<button type="button" class="copy" data-code="' + esc(res.creditCode) + '">Copy credit code</button>' +
+          '<p class="hint">The credit is valid for ' + esc(CONFIG.creditValidity) + '.</p>';
+      }
+      return h + '<p class="lead">When you pay for ' + esc(nc) + ', enter it in the <b>Change/Credit code</b> box and tap Apply. You can use a normal coupon code too. Your code is switched on once we have checked your payment receipt, and we will email you at <b>' + esc(d.email) + '</b> as soon as it is active.</p>' + (res.photo || (curEntry() && curEntry().photo) ? '<div class="notice">Your photo package carries over and is added free when you use your Change code.</div>' : '') +
+        (hasBackend ? '' : '<div class="notice">Preview: this request was not saved and the codes are only examples.</div>') +
+        (hasBackend ? '' : '') + '<p class="hint">Questions? Write to <a href="mailto:' + esc(CONFIG.supportEmail) + '">' + esc(CONFIG.supportEmail) + '</a> and mention your code.</p>';
+    }}
+  ];
+
+  function collect(){
+    var d = S.data, v = function(id){ var el=$(id); return el ? el.value.trim() : ''; };
+    if (S.step===1){ d.category = v('category'); d.newCategory = v('newCategory'); d.email = v('email').toLowerCase(); d.name = v('name'); d.mobile = v('mobile'); d.dob = v('dob'); }
+    if (S.step===2){ d.confirm = $('confirm').checked; }
+  }
+  function mark(id, bad){ var el=$(id); if (el) el.classList.toggle('invalid', bad); return bad; }
+  function validate(){
+    var d = S.data;
+    if (S.step===1){
+      mark('f-category', !curEntry()); mark('f-newCategory', !newEntry() || newEntry().name===curEntry().name); mark('f-email', !EMAIL.test(d.email)); mark('f-name', !d.name);
+      mark('f-mobile', !/^[6-9][0-9]{9}$/.test(d.mobile)); mark('f-dob', !d.dob);
+    }
+    if (S.step===2){ $('fileErr').textContent = 'Upload your payment receipt.'; mark('f-file', !d.receipt); mark('c-confirm', !d.confirm); }
+    var bad = document.querySelector('.invalid');
+    if (bad){ var f = bad.querySelector('input:not([type=file]),select') || bad.querySelector('label'); if (f && f.focus) f.focus(); bad.scrollIntoView({block:'center'}); return false; }
+    return true;
+  }
+
+  function render(dir){
+    var sc = screens[S.step], el = $('screen');
+    el.className = 'screen'; void el.offsetWidth;
+    el.className = 'screen' + (dir < 0 ? ' enter-back' : dir > 0 ? ' enter' : '');
+    el.innerHTML = sc.render();
+    $('barTitle').textContent = sc.title;
+    $('next').textContent = sc.btn;
+    $('back').hidden = (S.step===0 || S.step===3);
+    $('prog').style.width = [0,50,100,100][S.step] + '%';
+    if (dir) window.scrollTo(0,0);
+    if (S.step===2) wireUpload();
+    if (S.step===3) document.querySelectorAll('.copy').forEach(function(b){
+      b.addEventListener('click', function(){
+        var label = b.textContent, t = b.getAttribute('data-code');
+        var done = function(){ b.textContent = 'Copied'; setTimeout(function(){ b.textContent = label; }, 1800); };
+        if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, function(){ window.prompt('Copy your code:', t); });
+        else window.prompt('Copy your code:', t);
+      });
+    });
+  }
+
+  function wireUpload(){
+    var input = $('file'), drop = $('drop'), rm = $('removeFile');
+    input.addEventListener('change', function(){ if (input.files[0]) takeFile(input.files[0]); });
+    if (drop){
+      ['dragenter','dragover'].forEach(function(t){ drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+      ['dragleave','drop'].forEach(function(t){ drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+      drop.addEventListener('drop', function(e){ if (e.dataTransfer.files[0]) takeFile(e.dataTransfer.files[0]); });
+    }
+    var img = document.querySelector('.file img');
+    if (img) img.addEventListener('error', function(){ var p = document.createElement('div'); p.className = 'ph'; p.textContent = 'IMG'; img.replaceWith(p); });
+    if (rm) rm.addEventListener('click', function(){ collect(); S.data.receipt = null; S.preview = ''; render(0); });
+  }
+  function takeFile(f){
+    collect();
+    var err = null;
+    if (!TYPES.test(f.type)) err = 'Choose an image (JPG, PNG, HEIC) or a PDF.';
+    else if (f.size > CONFIG.maxReceiptMB*1048576) err = 'This file is ' + size(f.size) + '. Choose one under ' + CONFIG.maxReceiptMB + ' MB.';
+    if (err){ $('fileErr').textContent = err; mark('f-file', true); return; }
+    var rd = new FileReader();
+    rd.onload = function(){
+      var url = rd.result;
+      S.data.receipt = { name: f.name, type: f.type, size: f.size, data: url.split(',')[1] };
+      S.preview = /^image\/(png|jpe?g|webp)$/.test(f.type) ? url : '';
+      render(0);
+    };
+    rd.onerror = function(){ $('fileErr').textContent = 'That file could not be read. Try another one.'; mark('f-file', true); };
+    rd.readAsDataURL(f);
+  }
+
+  function submit(){
+    var btn = $('next'), msg = $('submitMsg');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Sending';
+    var ok = function(res){ S.result = res; S.step = 3; btn.disabled = false; render(1); };
+    var fail = function(e){
+      btn.disabled = false; btn.textContent = 'Get coupon code';
+      msg.innerHTML = '<div class="notice error">Your request was not sent: ' + esc((e && e.message) || 'connection problem') + '. Check your details and try again.</div>';
+    };
+    var d = S.data, payload = { category:d.category, newCategory:d.newCategory, email:d.email, name:d.name, mobile:d.mobile, dob:d.dob, confirm:d.confirm,
+      receipt: { name:d.receipt.name, type:d.receipt.type, data:d.receipt.data } };
+    if (hasBackend) call('submit', 'submitRequest', payload, ok, fail);
+    else setTimeout(function(){
+      var first = (d.name.split(/\s+/)[0] || 'DD').toUpperCase().replace(/[^A-Z]/g,'').slice(0,8) || 'DD';
+      var n = 1000 + Math.floor(Math.random()*9000), p = plan();
+      var ne = newEntry(); ok({ existing:false, newCategory:ne.label, entryCode: ne.name.toUpperCase() + (ne.photo ? 'PHOTO' : '') + '-' + first + '-' + n, entryAmount:p.entryAmount,
+        payAtCheckout:p.payAtCheckout, creditCode: p.creditAmount > 0 ? 'CREDIT-' + first + '-' + n : '', creditAmount:p.creditAmount });
+    }, 900);
+  }
+
+  $('next').addEventListener('click', function(){
+    if (S.step===3){ S.step=0; S.data=blank(); S.preview=''; S.result=null; render(-1); return; }
+    if (S.step>0){ collect(); if (!validate()) return; }
+    if (S.step===2){ submit(); return; }
+    S.step++; render(1);
+  });
+  $('back').addEventListener('click', function(){ collect(); S.step--; render(-1); });
+  $('screen').addEventListener('input', function(e){
+    if (e.target.id==='mobile') e.target.value = e.target.value.replace(/\D/g,'').slice(0,10);
+    var f = e.target.closest('.field,.check'); if (f && e.target.type!=='file') f.classList.remove('invalid');
+  });
+  $('screen').addEventListener('change', function(e){
+    if (S.step===1 && (e.target.id==='category' || e.target.id==='newCategory')){
+      collect(); var ce = curEntry(); if (ce && S.data.newCategory===ce.name) S.data.newCategory='';
+      render(0); var el = $(e.target.id); if (el) el.focus(); return;
+    }
+    var f = e.target.closest('.field,.check'); if (f && e.target.type!=='file') f.classList.remove('invalid');
+  });
+
+  render(0);
+})();
+</script>
+</body>
+</html>

@@ -1221,6 +1221,10 @@
         alert('Could not start payment: ' + (orderData.error || 'unknown error'));
         return;
       }
+      if (orderData.free) {
+        alert('Your coupon covers the full entry fee. Your registration is confirmed!');
+        return;
+      }
 
       const options = {
         key: orderData.keyId,
