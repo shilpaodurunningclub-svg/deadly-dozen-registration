@@ -330,8 +330,12 @@ function register(app, { pool, requireAdmin, getMailer, emailFrom }) {
     try {
       const { rows } = await pool.query('SELECT receipt_name, receipt_type, receipt_data FROM category_changes WHERE id = $1', [req.params.id]);
       if (!rows.length || !rows[0].receipt_data) return res.status(404).send('Receipt not found.');
+      // Filenames like Mac screenshots contain special spaces that are not allowed in headers,
+      // so send a plain ASCII name plus the full name encoded (RFC 5987).
+      const original = String(rows[0].receipt_name || 'receipt');
+      const ascii = original.normalize('NFKD').replace(/[^\x20-\x7E]/g, ' ').replace(/["\\]/g, '').replace(/\s+/g, ' ').trim() || 'receipt';
+      res.setHeader('Content-Disposition', `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(original)}`);
       res.setHeader('Content-Type', rows[0].receipt_type || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `inline; filename="${String(rows[0].receipt_name).replace(/"/g, '')}"`);
       res.send(rows[0].receipt_data);
     } catch (err) {
       console.error('receipt fetch failed:', err);
