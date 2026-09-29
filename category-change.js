@@ -186,7 +186,7 @@ function register(app, { pool, requireAdmin, getMailer, emailFrom }) {
     const cur = entryOf(curName, curPhoto === 'Photo');
     const nxt = entryOf(String(d.newCategory), cur && cur.photo);
     if (!cur || !nxt) return bad('Unknown category.');
-    if (cur.name === nxt.name) return bad('Your new category must be different from your current one.');
+    const sameCategory = cur.name === nxt.name;   // captain / member change within the same category
 
     const r = d.receipt || {};
     if (!r.data) return bad('Please upload your payment receipt.');
@@ -248,7 +248,11 @@ function register(app, { pool, requireAdmin, getMailer, emailFrom }) {
 
       await client.query('COMMIT');
 
-      let text = `Hi ${name},\n\nWe have received your request to switch from ${cur.label} to ${nxt.label}.\n\n` +
+      let text = `Hi ${name},\n\n` + (sameCategory
+          ? (nxt.name === 'Solo'
+            ? `We have received your request to transfer your ${cur.label} entry to another person.\nThe new participant registers for Solo with their own details and uses this code at payment.`
+            : `We have received your request to change the captain / members of your ${cur.label} entry.\nThe new captain registers the team again for ${nxt.name} with the updated members and uses this code at payment.`) + ` Your old registration is cancelled once the new one is confirmed.\n\n`
+          : `We have received your request to switch from ${cur.label} to ${nxt.label}.\n\n`) +
         `CHANGE CODE: ${entryCode} (worth Rs ${p.entryAmount} towards ${nxt.name})\n` +
         (p.payAtCheckout > 0 ? `Enter it in the Change/Credit code box when you pay for ${nxt.name}; you pay only the remaining Rs ${p.payAtCheckout}.\n`
                              : `It covers your full ${nxt.name} entry.\n`) +
