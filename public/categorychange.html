@@ -223,13 +223,14 @@ html.framed .foot { position:static; flex-shrink:0; }
   function newEntry(){ var c = curEntry(); return c && S.data.newCategory ? entryOf(S.data.newCategory, c.photo) : null; }
   function plan(){
     var c = curEntry(), n = newEntry();
-    if (!c || !n || c.name === n.name) return null;
+    if (!c || !n) return null;
     var diff = n.total - c.total;
     var cp = cat(c.name).price, np = cat(n.name).price;
     return diff > 0 ? { entryAmount:cp, payAtCheckout:diff, creditAmount:0 } : { entryAmount:np, payAtCheckout:0, creditAmount:-diff };
   }
   function planHtml(){
     var p = plan(), d = S.data; if (!p) return '';
+    if (curEntry().name === newEntry().name) { var solo = newEntry().name === 'Solo'; return '<div class="price"><strong>' + (solo ? 'Same category \u2013 transfer entry' : 'Same category \u2013 team change') + '</strong><b>Change code \u00b7 ' + inr(p.entryAmount) + '</b> covers your full ' + esc(newEntry().name) + ' entry. ' + (solo ? 'The new participant registers with their own details' : 'The new captain registers the team again with the updated members') + ' and applies the code at payment, so there is nothing more to pay.' + (newEntry().photo ? ' Your photo package carries over free.' : '') + ' Your old registration is cancelled once the new one is confirmed.</div>'; }
     var h = '<div class="price"><strong>You will get</strong>' +
       '<b>Change code · ' + inr(p.entryAmount) + '</b> towards ' + esc(newEntry().name) + ' ';
     h += p.payAtCheckout > 0
@@ -265,7 +266,7 @@ html.framed .foot { position:static; flex-shrink:0; }
     { title:'Category change', btn:'Start', render:function(){
       return '<p class="race">' + esc(CONFIG.raceName) + ' · ' + esc(CONFIG.raceDate) + '</p>' +
         '<h1>Change your race category</h1>' +
-        '<p class="lead">Already registered and want to switch between Solo, Pairs and Relay? Send a request here. You will receive a coupon code.</p>' +
+        '<p class="lead">Already registered and want to switch between Solo, Pairs and Relay, change the captain or a member of your team, or transfer a Solo entry to someone else? Send a request here. You will receive a code.</p>' +
         ticket('<div class="t-big">Solo · Pairs · Relay</div><div class="t-sub">Your payment moves to your new category</div>', 'Race day', '28/11') +
         '<ul class="ready">' +
           '<li>' + ICON.flag + '<div><b>Your current and new category</b><span>Solo, Pairs or Relay, with or without photo</span></div></li>' +
@@ -285,7 +286,7 @@ html.framed .foot { position:static; flex-shrink:0; }
         '<div class="field" id="f-newCategory"><label for="newCategory">Change to</label><div class="sel"><select id="newCategory">' +
           '<option value="">Select your new category</option>' +
           CONFIG.categories.map(function(c){ var ce = curEntry(), cur = !!ce && ce.name===c.name, e = entryOf(c.name, ce ? ce.photo : false);
-            return '<option value="' + esc(c.name) + '"' + (d.newCategory===c.name && !cur?' selected':'') + (cur?' disabled':'') + '>' + esc(e.label.toUpperCase()) + ' · ' + inr(e.total) + (cur?' (current)':'') + '</option>'; }).join('') +
+            return '<option value="' + esc(c.name) + '"' + (d.newCategory===c.name?' selected':'') + '>' + esc(e.label.toUpperCase()) + ' · ' + inr(e.total) + (cur?(c.name==='Solo'?' (same \u2013 transfer to another person)':' (same \u2013 change captain / member)'):'') + '</option>'; }).join('') +
         '</select></div>' + (curEntry() && curEntry().photo ? '<div class="hint">Your photo package (' + inr(CONFIG.photoPrice) + ') moves with you.</div>' : '') + '<div class="err">Choose a category different from your current one.</div></div>' +
         '<div id="planBox">' + planHtml() + '</div>' +
         field('email','Registered email','email', d.email, 'Enter the email you registered with.', 'email') +
@@ -335,7 +336,7 @@ html.framed .foot { position:static; flex-shrink:0; }
   function validate(){
     var d = S.data;
     if (S.step===1){
-      mark('f-category', !curEntry()); mark('f-newCategory', !newEntry() || newEntry().name===curEntry().name); mark('f-email', !EMAIL.test(d.email)); mark('f-name', !d.name);
+      mark('f-category', !curEntry()); mark('f-newCategory', !newEntry()); mark('f-email', !EMAIL.test(d.email)); mark('f-name', !d.name);
       mark('f-mobile', !/^[6-9][0-9]{9}$/.test(d.mobile)); mark('f-dob', !d.dob);
     }
     if (S.step===2){ $('fileErr').textContent = 'Upload your payment receipt.'; mark('f-file', !d.receipt); mark('c-confirm', !d.confirm); }
@@ -426,7 +427,7 @@ html.framed .foot { position:static; flex-shrink:0; }
   });
   $('screen').addEventListener('change', function(e){
     if (S.step===1 && (e.target.id==='category' || e.target.id==='newCategory')){
-      collect(); var ce = curEntry(); if (ce && S.data.newCategory===ce.name) S.data.newCategory='';
+      collect();
       render(0); var el = $(e.target.id); if (el) el.focus(); return;
     }
     var f = e.target.closest('.field,.check'); if (f && e.target.type!=='file') f.classList.remove('invalid');
