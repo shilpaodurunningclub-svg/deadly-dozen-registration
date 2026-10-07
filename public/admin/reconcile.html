@@ -92,6 +92,14 @@
   .badge.notpaid { background: #fbe4e2; color: var(--red); }
   .badge.direct { background: #e3ecf4; color: #1a4d7a; }
   .badge.team { background: #fdf1d9; color: var(--amber); }
+  .badge.manual { background: #efe3f6; color: #6a2a8a; }
+  .badge.new { background: #d9f2e6; color: #0d6b3a; }
+  .badge.review { background: #fde0cf; color: #a3400f; }
+  .badge.still { background: #eee; color: #555; }
+  .mini-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 11px; font-weight: 700; color: var(--red); }
+  .mini-btn:hover { background: #fbe4e2; }
+  textarea.rule-box { width: 100%; min-height: 80px; padding: 9px 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; font-family: monospace; }
+  .info-line { font-size: 12px; color: var(--muted); margin: 6px 0 12px; }
 
   .section-title { font-size: 15px; color: var(--red); font-weight: 700; margin: 30px 0 12px; }
   .checkbox-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
@@ -104,6 +112,34 @@
 <div class="wrap">
   <h1>Registration Reconciliation</h1>
   <p class="sub">Compare your Deadly Dozen Registration export against Razorpay's payment export — including team-based payment coverage. Everything happens in your browser; nothing is uploaded anywhere.</p>
+
+  <!-- SAVED HISTORY & RULES -->
+  <div class="card" id="connectCard">
+    <h2>Saved history &amp; rules</h2>
+    <p class="hint">Enter the admin key to apply your saved rules (Kauvery / BU / test payments left out), manual "marked paid" entries, and to compare with the last saved run so people who became paid get a <b>Newly paid</b> tag. Without connecting, reconciliation still runs, but with default rules and no history.</p>
+    <div class="btn-row">
+      <input type="password" id="adminKeyInput" placeholder="Admin key" style="max-width:240px; padding:9px 10px; border-radius:6px; border:1px solid var(--border);" onkeydown="if(event.key==='Enter') connectServer()">
+      <button class="compare-btn" onclick="connectServer()">Connect</button>
+      <span id="connectMsg" style="font-size:13px;"></span>
+    </div>
+    <div id="rulesBox" style="display:none; margin-top:16px;">
+      <div class="settings-grid">
+        <div class="field">
+          <label class="field-label" for="rulesKauvery">Kauvery Event amounts (₹, comma-separated) — tagged and left out</label>
+          <input type="text" id="rulesKauvery">
+        </div>
+        <div class="field">
+          <label class="field-label" for="rulesTest">Test payment amounts (₹, comma-separated) — tagged and left out</label>
+          <input type="text" id="rulesTest">
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="rulesExcluded">Other excluded payments — one per line: <code>pay_ID | TAG | note</code> (e.g. <code>pay_TSNbFrqGibscAZ | BU | corporate</code>)</label>
+        <textarea class="rule-box" id="rulesExcluded"></textarea>
+      </div>
+      <div class="btn-row"><button class="download-btn" onclick="saveRulesFromForm()">Save rules</button><span id="rulesMsg" style="font-size:13px;"></span></div>
+    </div>
+  </div>
 
   <!-- STEP 1: UPLOAD -->
   <div class="card">
@@ -166,8 +202,13 @@
     <div class="card">
       <h2>4. Dashboard</h2>
       <div class="dash-row" id="dashRow"></div>
+      <div class="info-line" id="runInfo"></div>
       <div class="btn-row">
-        <button class="download-btn" onclick="exportExcel()">⬇ Export Excel (All Registrations · Paid · Not Paid · Team Report · Unmatched Razorpay)</button>
+        <button class="compare-btn" onclick="saveRun()">💾 Save this run as the new baseline</button>
+        <span id="saveRunMsg" style="font-size:13px;"></span>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="download-btn" onclick="exportExcel()">⬇ Export Excel (All · Paid · Not Paid · Team · Unmatched · Newly Paid · Manual · Excluded)</button>
       </div>
     </div>
 
@@ -179,6 +220,9 @@
         <button class="filter-btn" data-f="notpaid" onclick="setStatusFilter('notpaid')">Not Paid</button>
         <button class="filter-btn" data-f="direct" onclick="setStatusFilter('direct')">Direct Paid</button>
         <button class="filter-btn" data-f="team" onclick="setStatusFilter('team')">Team Paid</button>
+        <button class="filter-btn" data-f="manual" onclick="setStatusFilter('manual')">Manual</button>
+        <button class="filter-btn" data-f="newly" onclick="setStatusFilter('newly')">Newly Paid</button>
+        <button class="filter-btn" data-f="review" onclick="setStatusFilter('review')">Needs Review</button>
       </div>
       <div class="filter-row">
         <select class="filter-select" id="teamFilterSelect" onchange="renderReportTable()">
@@ -206,6 +250,12 @@
       <div class="table-scroll"><table id="unmatchedTable"></table></div>
     </div>
 
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">Excluded Payments (left out of the reconciliation)</div>
+      <p class="hint">Captured payments tagged Kauvery Event, Test or BU by your saved rules. They are not used to mark anyone paid.</p>
+      <div class="table-scroll"><table id="excludedTable"></table></div>
+    </div>
+
   </div>
 </div>
 
@@ -219,6 +269,99 @@
   let teamReport = [];
   let unmatchedRazorpay = [];
   let statusFilter = 'all';
+  let excludedList = [];
+
+  // ---------- Saved history & rules (server) ----------
+  const DEFAULT_RULES = { kauveryAmounts: [450, 531, 767], testAmounts: [1, 10, 100], excludedPayments: {} };
+  let adminKey = '';
+  let connected = false;
+  let rules = JSON.parse(JSON.stringify(DEFAULT_RULES));
+  let overrides = [];     // manual overrides saved on the server
+  let manualPaid = [];    // registrations marked paid by hand in the registration system
+  let lastRun = null;     // last saved reconciliation snapshot
+  let runCompared = null; // info about the run we compared against
+
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    const res = await fetch(path, Object.assign({}, opts, {
+      headers: Object.assign({ 'Content-Type': 'application/json', 'x-admin-key': adminKey }, opts.headers || {})
+    }));
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || ('Server returned ' + res.status));
+    return data;
+  }
+
+  function rulesToForm() {
+    document.getElementById('rulesKauvery').value = (rules.kauveryAmounts || []).join(', ');
+    document.getElementById('rulesTest').value = (rules.testAmounts || []).join(', ');
+    document.getElementById('rulesExcluded').value = Object.entries(rules.excludedPayments || {})
+      .map(([id, v]) => `${id} | ${v.tag || 'BU'} | ${v.note || ''}`).join('\n');
+  }
+
+  function rulesFromForm() {
+    const nums = t => t.split(',').map(x => Number(x.trim())).filter(n => Number.isFinite(n) && n > 0);
+    const excluded = {};
+    document.getElementById('rulesExcluded').value.split('\n').forEach(line => {
+      const parts = line.split('|').map(p => p.trim());
+      if (/^pay_[A-Za-z0-9]+$/.test(parts[0] || '')) excluded[parts[0]] = { tag: parts[1] || 'BU', note: parts[2] || '' };
+    });
+    return {
+      kauveryAmounts: nums(document.getElementById('rulesKauvery').value),
+      testAmounts: nums(document.getElementById('rulesTest').value),
+      excludedPayments: excluded
+    };
+  }
+
+  async function saveRules(newRules) {
+    const out = await api('/api/reconcile/rules', { method: 'PUT', body: JSON.stringify(newRules) });
+    rules = out.rules;
+    rulesToForm();
+  }
+
+  async function saveRulesFromForm() {
+    const msg = document.getElementById('rulesMsg');
+    try {
+      await saveRules(rulesFromForm());
+      msg.textContent = 'Saved. Re-run the reconciliation to apply.';
+      msg.className = 'success';
+    } catch (e) { msg.textContent = e.message; msg.className = 'error'; }
+  }
+
+  async function connectServer() {
+    const msg = document.getElementById('connectMsg');
+    adminKey = document.getElementById('adminKeyInput').value.trim();
+    if (!adminKey) return;
+    msg.textContent = 'Connecting...'; msg.className = '';
+    try {
+      rules = Object.assign({}, DEFAULT_RULES, await api('/api/reconcile/rules'));
+      overrides = await api('/api/reconcile/overrides');
+      manualPaid = await api('/api/reconcile/manual-paid');
+      const latest = await api('/api/reconcile/runs/latest');
+      lastRun = latest.none ? null : latest;
+      connected = true;
+      rulesToForm();
+      document.getElementById('rulesBox').style.display = '';
+      msg.textContent = `Connected. ${overrides.length} manual override(s), ${manualPaid.length} manually-paid registration(s), ` +
+        (lastRun ? `last saved run: #${lastRun.id} on ${new Date(lastRun.run_at).toLocaleString('en-IN')}.` : 'no saved run yet.');
+      msg.className = 'success';
+      try { sessionStorage.setItem('ddAdminKey', adminKey); } catch (e) {}
+    } catch (e) {
+      connected = false;
+      msg.textContent = e.message; msg.className = 'error';
+    }
+  }
+
+  window.addEventListener('load', () => {
+    try {
+      const k = sessionStorage.getItem('ddAdminKey');
+      if (k) { document.getElementById('adminKeyInput').value = k; connectServer(); }
+    } catch (e) {}
+  });
 
   // ---------- File parsing ----------
   function parseSheet(file) {
@@ -446,10 +589,31 @@
 
     // Build captured payments lookup by contact
     capturedByContact = {};
+    excludedList = [];
     rzpData.rows.forEach(row => {
       const status = String(row[rzpMap.status] || '').trim().toLowerCase();
       if (status !== paidValueRaw) return;
       const contact = String(row[rzpMap.contact] || '').trim();
+
+      // Saved rules: Test / Kauvery Event amounts and individually excluded payments (e.g. BU)
+      const pid = rzpMap.paymentId ? String(row[rzpMap.paymentId] || '').trim() : '';
+      const amt = rzpMap.amount ? Number(String(row[rzpMap.amount] || '').replace(/,/g, '')) : NaN;
+      let exTag = '', exNote = '';
+      if (pid && rules.excludedPayments && rules.excludedPayments[pid]) {
+        exTag = rules.excludedPayments[pid].tag || 'Excluded'; exNote = rules.excludedPayments[pid].note || '';
+      } else if (Number.isFinite(amt) && (rules.testAmounts || []).includes(amt)) {
+        exTag = 'Test';
+      } else if (Number.isFinite(amt) && (rules.kauveryAmounts || []).includes(amt)) {
+        exTag = 'Kauvery Event';
+      }
+      if (exTag) {
+        excludedList.push({
+          paymentId: pid, amount: rzpMap.amount ? row[rzpMap.amount] : '', contact, tag: exTag, note: exNote,
+          date: rzpMap.paymentDate ? formatCell(row[rzpMap.paymentDate]) : '',
+          description: rzpMap.description ? row[rzpMap.description] : ''
+        });
+        return;
+      }
       if (!contact) return;
       if (!capturedByContact[contact]) capturedByContact[contact] = [];
       capturedByContact[contact].push({
@@ -572,6 +736,74 @@
       };
     });
 
+    // ---- Manual "marked paid" entries (saved overrides + registrations marked paid by hand) ----
+    function findManualEntry(i) {
+      const r = regProcessed[i];
+      const ref = String(results[i].bookingRef || '').trim().toUpperCase();
+      const ov = overrides.find(o => o.status === 'paid' && (
+        (o.booking_ref && ref && o.booking_ref.toUpperCase() === ref) ||
+        (o.contact && o.contact === r.contact && o.competition === r.categoryKey)));
+      if (ov) return { source: ov.source, paymentId: ov.payment_id || '', note: ov.note || '', by: ov.marked_by || '', at: ov.marked_at };
+      const mp = manualPaid.find(m => (m.registrationCode && ref && m.registrationCode.toUpperCase() === ref) ||
+        (r.contact && (m.contacts || []).includes(r.contact) && canonicalCategory(m.category) === r.categoryKey));
+      if (mp) return { source: mp.source, paymentId: mp.paymentId || '', note: mp.note || '', by: mp.markedBy || '', at: mp.paidAt };
+      return null;
+    }
+
+    results.forEach((row, i) => {
+      row.paidSource = row.paymentStatus === 'Paid' ? 'Razorpay' : '';
+      row.note = '';
+      if (row.paymentStatus === 'Paid') return;
+      const m = findManualEntry(i);
+      if (!m) return;
+      row.paymentStatus = 'Paid';
+      row.paidThroughType = 'Manual';
+      row.paidThrough = 'Manual' + (m.source === 'offline' ? ' (offline)' : '');
+      row.paymentId = m.paymentId;
+      row.paidSource = 'Manual' + (m.source === 'offline' ? ' (offline)' : '');
+      row.note = [m.note, m.by ? 'by ' + m.by : '', m.at ? new Date(m.at).toLocaleDateString('en-IN') : ''].filter(Boolean).join(' · ');
+    });
+
+    // A teammate marked paid by hand also covers the rest of that team (same competition)
+    results.forEach((row, i) => {
+      if (row.paymentStatus === 'Paid' || !regProcessed[i].team) return;
+      const mates = teamGroups[regProcessed[i].team.toLowerCase()] || [];
+      for (const j of mates) {
+        if (j !== i && results[j].paidThroughType === 'Manual' && results[j].categoryKey === row.categoryKey) {
+          row.paymentStatus = 'Paid';
+          row.paidThroughType = 'Team';
+          row.paidThrough = categoryDisplayLabel(row.categoryKey) + ' (manual)';
+          row.matchedContact = regProcessed[j].contact;
+          row.paymentId = results[j].paymentId;
+          row.paidSource = results[j].paidSource;
+          row.note = 'Covered by teammate marked paid: ' + results[j].note;
+          break;
+        }
+      }
+    });
+
+    // ---- Compare with the last saved run → tags ----
+    const hasPrev = !!(lastRun && Array.isArray(lastRun.rows));
+    const prevMap = {};
+    if (hasPrev) lastRun.rows.forEach(p => { prevMap[p.key] = p; });
+    runCompared = hasPrev ? { id: lastRun.id, runAt: lastRun.run_at } : null;
+    const today = new Date().toISOString().slice(0, 10);
+    results.forEach(row => {
+      row.key = row.bookingRef ? String(row.bookingRef).trim() : (row.contact + '|' + row.categoryKey);
+      const prev = prevMap[row.key];
+      const paid = row.paymentStatus === 'Paid';
+      row.newlyPaidOn = '';
+      row.firstSeen = prev && prev.firstSeen ? prev.firstSeen : today;
+      row.notPaidRuns = paid ? 0 : ((prev && prev.status !== 'Paid' ? (prev.notPaidRuns || 1) : 0) + 1);
+      if (!hasPrev) row.tag = '';
+      else if (!prev) row.tag = 'New registration';
+      else if (paid && prev.status !== 'Paid') { row.tag = 'Newly paid'; row.newlyPaidOn = today; }
+      else if (paid && prev.newlyPaidOn) { row.tag = 'Newly paid'; row.newlyPaidOn = prev.newlyPaidOn; }
+      else if (paid) row.tag = 'Paid (no change)';
+      else if (prev.status === 'Paid') row.tag = 'Needs review';
+      else row.tag = 'Still not paid';
+    });
+
     // Team Payment Report
     teamReport = Object.keys(teamGroups).map(key => {
       const indices = teamGroups[key];
@@ -583,6 +815,15 @@
           payingContact = r.contact;
           payment = capturedByContact[r.contact][0];
           break;
+        }
+      }
+      if (!payment) {
+        const mi = indices.find(i => results[i].paymentStatus === 'Paid');
+        if (mi !== undefined) {
+          return {
+            teamName, numParticipants: indices.length, status: 'Paid',
+            payingContact: regProcessed[mi].contact, paymentId: results[mi].paymentId, amount: ''
+          };
         }
       }
       return {
@@ -614,6 +855,7 @@
     renderReportTable();
     renderTeamTable();
     renderUnmatchedTable();
+    renderExcludedTable();
 
     document.getElementById('resultsWrap').style.display = '';
     document.getElementById('resultsWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -624,7 +866,10 @@
     const totalRegistered = results.length;
     const paidDirect = results.filter(r => r.paidThroughType === 'Direct').length;
     const paidTeam = results.filter(r => r.paidThroughType === 'Team').length;
-    const totalPaidParticipants = paidDirect + paidTeam;
+    const paidManual = results.filter(r => r.paidThroughType === 'Manual').length;
+    const newlyPaid = results.filter(r => r.tag === 'Newly paid').length;
+    const needsReview = results.filter(r => r.tag === 'Needs review').length;
+    const totalPaidParticipants = results.filter(r => r.paymentStatus === 'Paid').length;
     const notPaid = totalRegistered - totalPaidParticipants;
     const totalTeams = teamReport.length;
     const paidTeams = teamReport.filter(t => t.status === 'Paid').length;
@@ -634,18 +879,27 @@
       ['Total Registered', totalRegistered],
       ['Paid Direct', paidDirect],
       ['Paid Through Team', paidTeam],
+      ['Paid Manually', paidManual],
       ['Total Paid Participants', totalPaidParticipants],
       ['Not Paid', notPaid],
       ['Total Teams', totalTeams],
       ['Paid Teams', paidTeams],
       ['Unpaid Teams', unpaidTeams],
       ['Matched Razorpay Amount', '₹' + matchedAmount.toLocaleString('en-IN')],
-      ['Unmatched Captured Payments', unmatchedRazorpay.length]
+      ['Unmatched Captured Payments', unmatchedRazorpay.length],
+      ['Excluded Payments (Kauvery / BU / Test)', excludedList.length]
     ];
+    if (runCompared) {
+      pills.push(['Newly Paid since last run', newlyPaid]);
+      pills.push(['Needs Review (was paid)', needsReview]);
+    }
 
     document.getElementById('dashRow').innerHTML = pills.map(([label, val]) =>
       `<div class="dash-pill"><b>${val}</b>${label}</div>`
     ).join('');
+    document.getElementById('runInfo').textContent = runCompared
+      ? `Compared with saved run #${runCompared.id} (${new Date(runCompared.runAt).toLocaleString('en-IN')}).`
+      : (connected ? 'No saved run to compare with yet — save this one as the baseline.' : 'Not connected: no history comparison, default exclusion rules only.');
   }
 
   // ---------- Filters ----------
@@ -669,29 +923,40 @@
       if (statusFilter === 'notpaid' && r.paymentStatus !== 'Not Paid') return false;
       if (statusFilter === 'direct' && r.paidThroughType !== 'Direct') return false;
       if (statusFilter === 'team' && r.paidThroughType !== 'Team') return false;
+      if (statusFilter === 'manual' && r.paidThroughType !== 'Manual') return false;
+      if (statusFilter === 'newly' && r.tag !== 'Newly paid') return false;
+      if (statusFilter === 'review' && r.tag !== 'Needs review') return false;
       if (teamVal !== 'all' && r.team !== teamVal) return false;
       if (catVal !== 'all' && r.categoryKey !== catVal) return false;
       return true;
     });
   }
 
-  const REPORT_HEADERS = ['First Name', 'Last Name', 'Booking Reference', 'Team', 'Competition', 'Email', 'Contact Number', 'Registration Status', 'Registration Date', 'Registration Amount', 'Gender', 'City', 'Payment Status', 'Paid Through', 'Matched Paying Contact', 'Razorpay Payment ID', 'Razorpay Amount', 'Payment Date'];
+  const REPORT_HEADERS = ['First Name', 'Last Name', 'Booking Reference', 'Team', 'Competition', 'Email', 'Contact Number', 'Registration Status', 'Registration Date', 'Registration Amount', 'Gender', 'City', 'Payment Status', 'Paid Through', 'Matched Paying Contact', 'Razorpay Payment ID', 'Razorpay Amount', 'Payment Date', 'Tag', 'Newly Paid On', 'Paid Source', 'Note'];
 
   function reportRowToArray(r) {
-    return [r.firstName, r.lastName, r.bookingRef, r.team, r.category, r.email, r.contact, r.regStatus, r.regDate, r.regAmount, r.gender, r.city, r.paymentStatus, r.paidThrough, r.matchedContact, r.paymentId, r.paymentAmount, r.paymentDate];
+    return [r.firstName, r.lastName, r.bookingRef, r.team, r.category, r.email, r.contact, r.regStatus, r.regDate, r.regAmount, r.gender, r.city, r.paymentStatus, r.paidThrough, r.matchedContact, r.paymentId, r.paymentAmount, r.paymentDate, r.tag, r.newlyPaidOn, r.paidSource, r.note];
   }
 
   function renderReportTable() {
     const rows = getFilteredResults();
     const table = document.getElementById('reportTable');
-    let html = '<thead><tr>' + REPORT_HEADERS.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    let html = '<thead><tr>' + REPORT_HEADERS.map(h => `<th>${h}</th>`).join('') + '<th>Action</th></tr></thead><tbody>';
     rows.forEach(r => {
       const vals = reportRowToArray(r);
       html += '<tr>' + vals.map((v, i) => {
-        if (i === 12) return `<td><span class="badge ${r.paymentStatus === 'Paid' ? 'paid' : 'notpaid'}">${v}</span></td>`;
-        if (i === 13 && v) return `<td><span class="badge ${r.paidThroughType === 'Direct' ? 'direct' : 'team'}">${v}</span></td>`;
-        return `<td>${v === '' || v == null ? '—' : v}</td>`;
-      }).join('') + '</tr>';
+        if (i === 12) return `<td><span class="badge ${r.paymentStatus === 'Paid' ? 'paid' : 'notpaid'}">${esc(v)}</span></td>`;
+        if (i === 13 && v) {
+          const cls = r.paidThroughType === 'Direct' ? 'direct' : (r.paidThroughType === 'Manual' ? 'manual' : 'team');
+          return `<td><span class="badge ${cls}">${esc(v)}</span></td>`;
+        }
+        if (i === 18 && v) {
+          const cls = v === 'Newly paid' || v === 'New registration' ? 'new' : (v === 'Needs review' ? 'review' : 'still');
+          return `<td><span class="badge ${cls}">${esc(v)}</span></td>`;
+        }
+        return `<td>${v === '' || v == null ? '—' : esc(v)}</td>`;
+      }).join('') +
+        `<td>${r.paymentStatus === 'Not Paid' ? `<button class="mini-btn" onclick="markManual('${esc(r.key).replace(/'/g, '&#39;')}')">Mark paid</button>` : ''}</td></tr>`;
     });
     html += '</tbody>';
     table.innerHTML = html;
@@ -720,16 +985,86 @@
 
   function renderUnmatchedTable() {
     const table = document.getElementById('unmatchedTable');
-    const headers = ['Contact', 'Razorpay Payment ID', 'Amount', 'Payment Date'];
+    const headers = ['Contact', 'Razorpay Payment ID', 'Amount', 'Payment Date', 'Description', 'Action'];
     let html = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
     if (!unmatchedRazorpay.length) {
       html += `<tr><td colspan="${headers.length}" style="color:var(--muted); text-align:center; padding:20px;">No unmatched captured payments.</td></tr>`;
     }
     unmatchedRazorpay.forEach(p => {
-      html += `<tr><td>${p.contact}</td><td>${p.paymentId || '—'}</td><td>${p.amount || '—'}</td><td>${p.date || '—'}</td></tr>`;
+      html += `<tr><td>${esc(p.contact)}</td><td>${esc(p.paymentId) || '—'}</td><td>${esc(p.amount) || '—'}</td><td>${esc(p.date) || '—'}</td><td>${esc(p.description) || '—'}</td>
+        <td>${p.paymentId ? `<button class="mini-btn" onclick="excludePayment('${esc(p.paymentId)}')">Exclude (tag)</button>` : ''}</td></tr>`;
     });
     html += '</tbody>';
     table.innerHTML = html;
+  }
+
+  function renderExcludedTable() {
+    const table = document.getElementById('excludedTable');
+    const headers = ['Tag', 'Razorpay Payment ID', 'Amount', 'Contact', 'Payment Date', 'Description', 'Note'];
+    let html = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+    if (!excludedList.length) html += `<tr><td colspan="${headers.length}" style="color:var(--muted); text-align:center; padding:20px;">None.</td></tr>`;
+    excludedList.forEach(p => {
+      html += `<tr><td><span class="badge still">${esc(p.tag)}</span></td><td>${esc(p.paymentId) || '—'}</td><td>${esc(p.amount) || '—'}</td><td>${esc(p.contact) || '—'}</td><td>${esc(p.date) || '—'}</td><td>${esc(p.description) || '—'}</td><td>${esc(p.note) || '—'}</td></tr>`;
+    });
+    table.innerHTML = html + '</tbody>';
+  }
+
+  async function excludePayment(pid) {
+    if (!connected) { alert('Connect with the admin key (top of the page) to save exclusions.'); return; }
+    const tag = prompt('Tag for payment ' + pid + ' (e.g. BU). It will be left out of the reconciliation from now on:', 'BU');
+    if (!tag) return;
+    const note = prompt('Note (optional):', '') || '';
+    const updated = JSON.parse(JSON.stringify(rules));
+    updated.excludedPayments = updated.excludedPayments || {};
+    updated.excludedPayments[pid] = { tag: tag.trim(), note: note.trim() };
+    try { await saveRules(updated); runReconciliation(); } catch (e) { alert(e.message); }
+  }
+
+  async function markManual(key) {
+    if (!connected) { alert('Connect with the admin key (top of the page) to save manual entries.'); return; }
+    const r = results.find(x => x.key === key);
+    if (!r) return;
+    const label = `${r.firstName || ''} ${r.lastName || ''}`.trim() || r.contact;
+    const pid = prompt(`Mark ${label} (${categoryDisplayLabel(r.categoryKey)}) as paid.\n\nRazorpay payment ID (pay_...) you verified.\nLeave blank ONLY for cash / sponsor / waived entries:`, '');
+    if (pid === null) return;
+    const payId = pid.trim();
+    if (payId && !/^pay_[A-Za-z0-9]+$/.test(payId)) { alert('That does not look like a Razorpay payment ID (pay_...).'); return; }
+    const note = (prompt(payId ? 'Note (what did you check?) — optional:' : 'Note — required (why is this person paid without a payment ID?):', '') || '').trim();
+    if (!payId && !note) { alert('A note is required when there is no payment ID.'); return; }
+    try {
+      await api('/api/reconcile/overrides', { method: 'PUT', body: JSON.stringify({
+        bookingRef: r.bookingRef, contact: r.contact, competition: r.categoryKey, name: label,
+        source: payId ? 'manual' : 'offline', paymentId: payId, note, markedBy: 'admin'
+      }) });
+      overrides = await api('/api/reconcile/overrides');
+      runReconciliation();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function saveRun() {
+    const msg = document.getElementById('saveRunMsg');
+    if (!connected) { msg.textContent = 'Connect with the admin key first.'; msg.className = 'error'; return; }
+    if (!results.length) return;
+    if (!confirm('Save this run as the new baseline? Future runs will be compared against it (Newly paid / Still not paid tags).')) return;
+    const rows = results.map(r => ({
+      key: r.key, bookingRef: r.bookingRef, contact: r.contact, name: `${r.firstName || ''} ${r.lastName || ''}`.trim(),
+      competition: r.categoryKey, status: r.paymentStatus, paidThrough: r.paidThrough, paymentId: r.paymentId,
+      newlyPaidOn: r.newlyPaidOn, firstSeen: r.firstSeen, notPaidRuns: r.notPaidRuns
+    }));
+    const summary = {
+      total: results.length,
+      paid: results.filter(r => r.paymentStatus === 'Paid').length,
+      notPaid: results.filter(r => r.paymentStatus !== 'Paid').length,
+      manual: results.filter(r => r.paidThroughType === 'Manual').length,
+      newlyPaid: results.filter(r => r.tag === 'Newly paid').length,
+      excludedPayments: excludedList.length
+    };
+    try {
+      const out = await api('/api/reconcile/runs', { method: 'POST', body: JSON.stringify({ label: 'Reconcile ' + new Date().toLocaleString('en-IN'), summary, rows }) });
+      lastRun = { id: out.id, run_at: out.runAt, rows };
+      msg.textContent = `Saved as run #${out.id}. The next run will be compared against it.`;
+      msg.className = 'success';
+    } catch (e) { msg.textContent = e.message; msg.className = 'error'; }
   }
 
   // ---------- Excel export (multi-sheet) ----------
@@ -751,6 +1086,14 @@
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(notPaidRows), 'Not Paid');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(teamRows), 'Team Report');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(unmatchedRows), 'Unmatched Razorpay');
+
+    const newlyRows = [REPORT_HEADERS, ...results.filter(r => r.tag === 'Newly paid').map(reportRowToArray)];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(newlyRows), 'Newly Paid');
+    const manualRows = [REPORT_HEADERS, ...results.filter(r => r.paidThroughType === 'Manual').map(reportRowToArray)];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(manualRows), 'Manual');
+    const exHeaders = ['Tag', 'Razorpay Payment ID', 'Amount', 'Contact', 'Payment Date', 'Description', 'Note'];
+    const exRows = [exHeaders, ...excludedList.map(p => [p.tag, p.paymentId, p.amount, p.contact, p.date, p.description, p.note])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(exRows), 'Excluded Payments');
 
     XLSX.writeFile(wb, `deadly-dozen-reconciliation-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }

@@ -288,7 +288,24 @@
 
     <div class="bulk-bar" id="bulkBar" style="display:none;">
       <span id="selectedCount">0 selected</span>
+      <button class="delete-btn" onclick="openBulkEmail()" style="background:#1a4d7a;">Send bulk email</button>
       <button class="delete-btn" onclick="bulkDelete()">Delete selected</button>
+    </div>
+
+    <div id="bulkEmailPanel" style="display:none; background:#fff; border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:16px;">
+      <h3 style="margin:0 0 4px; color:var(--red); font-size:15px;">Send bulk email</h3>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 14px;">Sending to <span id="bulkEmailRecipientCount">0</span> recipient(s). Only rows with a valid email address will actually receive it — others are skipped.</p>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">Subject</label>
+        <input type="text" id="bulkEmailSubject" placeholder="e.g. Deadly Dozen — Important update about your registration" style="width:100%; padding:10px 12px; border-radius:6px; border:1px solid var(--border); font-size:14px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:12px; color:var(--muted); margin-bottom:4px;">Message (use {{firstName}} to personalize the greeting)</label>
+        <textarea id="bulkEmailBody" rows="8" placeholder="Hi {{firstName}},&#10;&#10;..." style="width:100%; padding:10px 12px; border-radius:6px; border:1px solid var(--border); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+      </div>
+      <button class="row-delete-btn" style="background:#1a4d7a; color:#fff; padding:10px 22px;" onclick="sendBulkEmail()" id="sendBulkEmailBtn">Send</button>
+      <button class="row-delete-btn" onclick="closeBulkEmail()">Cancel</button>
+      <div id="bulkEmailStatus" style="font-size:13px; margin-top:10px;"></div>
     </div>
 
     <div id="tableWrap"></div>
@@ -508,6 +525,62 @@
     }
   }
 
+  function openBulkEmail() {
+    const count = selectedIds.size;
+    document.getElementById('bulkEmailRecipientCount').textContent = count;
+    document.getElementById('bulkEmailStatus').textContent = '';
+    document.getElementById('bulkEmailPanel').style.display = '';
+    document.getElementById('bulkEmailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function closeBulkEmail() {
+    document.getElementById('bulkEmailPanel').style.display = 'none';
+    document.getElementById('bulkEmailSubject').value = '';
+    document.getElementById('bulkEmailBody').value = '';
+    document.getElementById('bulkEmailStatus').textContent = '';
+  }
+
+  async function sendBulkEmail() {
+    const subject = document.getElementById('bulkEmailSubject').value.trim();
+    const body = document.getElementById('bulkEmailBody').value.trim();
+    const statusEl = document.getElementById('bulkEmailStatus');
+    const btn = document.getElementById('sendBulkEmailBtn');
+
+    if (!subject || !body) {
+      statusEl.textContent = 'Please fill in both the subject and message.';
+      statusEl.style.color = 'var(--red)';
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`Send this email to ${ids.length} recipient(s)?`)) return;
+
+    btn.disabled = true;
+    statusEl.textContent = 'Sending...';
+    statusEl.style.color = 'var(--muted)';
+
+    try {
+      const res = await fetch(`${API_BASE}/api/registrations/bulk-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ ids, subject, body })
+      });
+      const data = await res.json();
+      btn.disabled = false;
+      if (!res.ok || !data.ok) {
+        statusEl.textContent = data.error || 'Could not send bulk email.';
+        statusEl.style.color = 'var(--red)';
+        return;
+      }
+      statusEl.textContent = `Sent to ${data.sentCount} of ${data.totalCount} recipient(s).` + (data.skippedCount ? ` ${data.skippedCount} skipped (no valid email).` : '');
+      statusEl.style.color = 'var(--green)';
+    } catch (e) {
+      btn.disabled = false;
+      statusEl.textContent = 'Could not reach the server.';
+      statusEl.style.color = 'var(--red)';
+    }
+  }
+
   function renderTable() {
     const rows = getVisibleRows();
 
@@ -523,7 +596,7 @@
 
     let html = `<table><thead><tr>
       <th><input type="checkbox" ${allVisibleSelected ? 'checked' : ''} onchange="toggleSelectAll(this.checked)"></th>
-      <th>Status</th><th>Registration Code</th><th>Category</th><th>Team</th><th>Lead entrant</th><th>Contact</th><th>Members</th><th>Amount</th><th>Registered</th><th>Reg. ID</th><th></th>
+      <th>Status</th><th>Paid via</th><th>Registration Code</th><th>Category</th><th>Team</th><th>Lead entrant</th><th>Contact</th><th>Members</th><th>Amount</th><th>Registered</th><th>Reg. ID</th><th></th>
     </tr></thead><tbody>`;
 
     rows.forEach(r => {
@@ -533,6 +606,7 @@
       html += `<tr>
         <td><input type="checkbox" ${checked} onchange="toggleSelect('${r.id}', this.checked)"></td>
         <td><span class="badge ${r.status}">${statusLabel(r.status)}</span></td>
+        <td style="font-size:12px;" title="${paidViaTitle(r)}">${paidViaLabel(r)}</td>
         <td style="font-family:monospace; font-size:12px;">${r.registrationCode || '—'}</td>
         <td><span class="cat-badge">${(r.categoryLabel || r.category || '—').toUpperCase()}</span></td>
         <td>${r.teamName || '—'}</td>
@@ -563,23 +637,41 @@
     });
   }
 
+  function paidViaLabel(r) {
+    if (r.status !== 'paid') return '—';
+    return { razorpay: 'Razorpay', webhook: 'Razorpay (webhook)', manual: 'Manual', offline: 'Offline / waived', coupon: 'Coupon (free)' }[r.paidSource] || 'Razorpay';
+  }
+  function paidViaTitle(r) {
+    const parts = [];
+    if (r.razorpayPaymentId) parts.push(r.razorpayPaymentId);
+    if (r.paidNote) parts.push(r.paidNote);
+    if (r.paidMarkedBy) parts.push('by ' + r.paidMarkedBy);
+    return parts.join(' · ').replace(/"/g, '&quot;');
+  }
+
+  // Manual mark: a Razorpay payment ID is required (you checked the payment yourself), or, for cash /
+  // sponsor / waived entries, leave the ID blank and give a note. Both are saved and shown in reconciliation.
   async function markPaid(id) {
-    const paymentId = prompt('Optional: paste the Razorpay Payment ID (e.g. pay_...) to attach it to this record. Leave blank to skip.', '');
+    const paymentId = (prompt('Paste the Razorpay Payment ID (pay_...) you verified in the Razorpay dashboard.\n\nLeave blank ONLY for cash / sponsor / waived entries (a note will be required).', '') );
     if (paymentId === null) return; // cancelled
-    if (!confirm('Mark this registration as PAID? This will also send the confirmation email.')) return;
+    const payId = paymentId.trim();
+    if (payId && !/^pay_[A-Za-z0-9]+$/.test(payId)) { alert('That does not look like a Razorpay payment ID (pay_...).'); return; }
+    const note = (prompt(payId ? 'Note (optional) — e.g. "Paid from a different phone, verified order ID":' : 'Note (required) — why is this entry paid without a payment ID?', '') || '').trim();
+    if (!payId && !note) { alert('A note is required when there is no payment ID.'); return; }
+    if (!confirm('Mark this registration as PAID' + (payId ? ' (' + payId + ')' : ' (offline)') + '? This will also send the confirmation email.')) return;
 
     try {
       const res = await fetch(`${API_BASE}/api/registrations/${encodeURIComponent(id)}/mark-paid`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
-        body: JSON.stringify({ razorpayPaymentId: paymentId || undefined })
+        body: JSON.stringify({ razorpayPaymentId: payId || undefined, source: payId ? 'manual' : 'offline', note: note || undefined, markedBy: 'admin' })
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
         alert('Could not mark as paid: ' + (data.error || 'unknown error'));
         return;
       }
-      alert('Marked as paid and confirmation email sent.');
+      alert('Marked as paid and confirmation email sent. This manual entry is saved and will be picked up by the reconciliation page.');
       loadData();
     } catch (e) {
       alert('Could not reach the server.');

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deadly Dozen — Bulk Email</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --red: #a3271f;
+    --red-dark: #7f1e18;
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --border: #d9d9d9;
+    --card: #f6f5f4;
+    --page: #e9e7e5;
+    --green: #1a7a3a;
+    --amber: #a06a00;
+    --blue: #1a4d7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+  }
+  .topbar { height: 6px; background: var(--red); }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { color: var(--red); letter-spacing: 0.5px; font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+
+  #loginGate {
+    max-width: 420px; margin: 80px auto; background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 28px;
+  }
+  #loginGate h2 { margin-top: 0; font-size: 18px; color: var(--red); }
+  #loginGate input { width: 100%; padding: 12px 14px; border-radius: 6px; border: 1px solid var(--border); font-size: 15px; margin-bottom: 12px; }
+  #loginGate button { width: 100%; padding: 12px; background: var(--red); color: #fff; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 15px; }
+  #loginError { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 22px; margin-bottom: 22px; }
+  .card h2 { margin: 0 0 14px; font-size: 16px; color: var(--red); }
+  .hint { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+
+  .source-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .source-tab {
+    padding: 8px 16px; border-radius: 18px; border: 1px solid var(--border); background: #fff;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  .source-tab.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+  .upload-box { border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 10px; }
+  .upload-box.loaded { border-color: var(--green); background: #f2f9f4; }
+  .upload-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  textarea, input[type="text"], input[type="password"] {
+    width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border);
+    font-size: 14px; font-family: inherit; resize: vertical;
+  }
+
+  .status-filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  .status-filter-btn {
+    padding: 7px 15px; border-radius: 18px; border: 1px solid var(--border); background: #fff;
+    cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  .status-filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+  .recipient-count { font-size: 14px; font-weight: 700; color: var(--ink); margin: 10px 0; }
+  .recipient-count span { color: var(--green); }
+
+  .field { margin-bottom: 14px; }
+  label.field-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+
+  .send-btn, .cancel-btn {
+    padding: 13px 28px; border-radius: 6px; font-weight: 700; font-size: 15px; cursor: pointer; border: none;
+  }
+  .send-btn { background: var(--red); color: #fff; }
+  .send-btn:hover { background: var(--red-dark); }
+  .send-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .cancel-btn { background: #fff; border: 1px solid var(--border); color: var(--ink); margin-left: 10px; }
+
+  #composeStatus { font-size: 13px; margin-top: 12px; }
+  .error { color: var(--red); }
+  .success { color: var(--green); font-weight: 600; }
+  .warn-box {
+    background: #fdf1d9; border: 1px solid #e8cf9a; border-radius: 8px; padding: 14px 16px;
+    font-size: 13px; color: #6b4f00; margin-bottom: 16px;
+  }
+
+  .progress-card { display: none; }
+  .progress-bar-track { background: #eee; border-radius: 20px; height: 22px; overflow: hidden; margin: 12px 0; }
+  .progress-bar-fill { background: var(--green); height: 100%; width: 0%; transition: width 0.4s; }
+  .progress-stats { display: flex; gap: 20px; font-size: 13px; flex-wrap: wrap; }
+  .progress-stats b { display: block; font-size: 20px; }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+<div class="wrap">
+
+  <div id="loginGate">
+    <h2>DEADLY DOZEN — Bulk Email</h2>
+    <p style="font-size:13px; color:var(--muted);">Enter the admin key to send bulk emails.</p>
+    <input type="password" id="adminKeyInput" placeholder="Admin key" onkeydown="if(event.key==='Enter') login()">
+    <button onclick="login()">Continue</button>
+    <div id="loginError"></div>
+  </div>
+
+  <div id="mainView" style="display:none;">
+    <h1>Bulk Email</h1>
+    <p class="sub">Send a personalized email to a large list of recipients — from your registrations, a pasted list, or an uploaded spreadsheet.</p>
+
+    <div class="warn-box">
+      <strong>Before sending 1000+ emails:</strong> a plain Gmail account can send about 500 emails per day; Google Workspace accounts allow up to 2000/day. Sending beyond your account's limit will cause the remaining emails to fail partway through. Emails are sent one at a time with a short pause between each (roughly 2-3 per second), so 1000 recipients takes about 6-7 minutes.
+    </div>
+
+    <div class="card">
+      <h2>1. Choose recipients</h2>
+      <div class="source-tabs">
+        <button class="source-tab active" data-tab="registrations" onclick="setSourceTab('registrations')">From Registrations</button>
+        <button class="source-tab" data-tab="paste" onclick="setSourceTab('paste')">Paste a list</button>
+        <button class="source-tab" data-tab="upload" onclick="setSourceTab('upload')">Upload Excel/CSV</button>
+      </div>
+
+      <div id="tab-registrations">
+        <p class="hint">Pulls every registration currently in the database, optionally filtered by status.</p>
+        <div class="status-filter-row" id="regStatusFilterRow">
+          <button class="status-filter-btn active" data-f="all" onclick="setRegStatusFilter('all')">All</button>
+          <button class="status-filter-btn" data-f="paid" onclick="setRegStatusFilter('paid')">Paid</button>
+          <button class="status-filter-btn" data-f="pending_payment" onclick="setRegStatusFilter('pending_payment')">Pending payment</button>
+        </div>
+        <button class="send-btn" style="background:var(--blue);" onclick="loadFromRegistrations()">Load recipients</button>
+      </div>
+
+      <div id="tab-paste" style="display:none;">
+        <p class="hint">One email per line, or "email, first name" per line for personalization.</p>
+        <textarea id="pasteBox" rows="8" placeholder="jane@example.com, Jane&#10;john@example.com, John&#10;another@example.com"></textarea>
+        <button class="send-btn" style="background:var(--blue); margin-top:10px;" onclick="loadFromPaste()">Load recipients</button>
+      </div>
+
+      <div id="tab-upload" style="display:none;">
+        <p class="hint">Needs a column with email addresses (header containing "email"). A "first name" column is used for personalization if present.</p>
+        <div class="upload-box" id="uploadBox">
+          <input type="file" id="uploadFile" accept=".xlsx,.xls,.csv" onchange="handleUploadFile(this)">
+          <div class="upload-status" id="uploadStatus">No file selected</div>
+        </div>
+      </div>
+
+      <div class="recipient-count" id="recipientCount" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Compose</h2>
+      <div class="field">
+        <label class="field-label" for="emailSubject">Subject</label>
+        <input type="text" id="emailSubject" placeholder="e.g. Deadly Dozen — Important update about your registration">
+      </div>
+      <div class="field">
+        <label class="field-label" for="emailBody">Message (use {{firstName}} to personalize the greeting)</label>
+        <textarea id="emailBody" rows="10" placeholder="Hi {{firstName}},&#10;&#10;..."></textarea>
+      </div>
+      <button class="send-btn" id="sendBtn" onclick="startBulkSend()">Send to <span id="sendBtnCount">0</span> recipients</button>
+      <div id="composeStatus"></div>
+    </div>
+
+    <div class="card progress-card" id="progressCard">
+      <h2>Sending...</h2>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBarFill"></div></div>
+      <div class="progress-stats">
+        <div><b id="progSent">0</b>Sent</div>
+        <div><b id="progFailed">0</b>Failed</div>
+        <div><b id="progRemaining">0</b>Remaining</div>
+        <div><b id="progTotal">0</b>Total</div>
+      </div>
+      <button class="cancel-btn" id="cancelJobBtn" onclick="cancelBulkSend()" style="margin-top:14px; margin-left:0;">Cancel remaining sends</button>
+      <div id="progressStatusMsg" style="font-size:13px; margin-top:10px;"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const API_BASE = '';
+  let adminKey = '';
+  let recipients = []; // [{ email, firstName }]
+  let currentSourceTab = 'registrations';
+  let regStatusFilter = 'all';
+  let pollTimer = null;
+
+  function login() {
+    adminKey = document.getElementById('adminKeyInput').value.trim();
+    if (!adminKey) return;
+    document.getElementById('loginGate').style.display = 'none';
+    document.getElementById('mainView').style.display = '';
+    checkExistingJob();
+  }
+
+  function setSourceTab(tab) {
+    currentSourceTab = tab;
+    document.querySelectorAll('.source-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    ['registrations', 'paste', 'upload'].forEach(t => {
+      document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
+    });
+  }
+
+  function setRegStatusFilter(f) {
+    regStatusFilter = f;
+    document.querySelectorAll('#regStatusFilterRow .status-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  }
+
+  function updateRecipientCount() {
+    const el = document.getElementById('recipientCount');
+    if (!recipients.length) {
+      el.style.display = 'none';
+    } else {
+      el.style.display = '';
+      el.innerHTML = `<span>${recipients.length}</span> recipient(s) loaded`;
+    }
+    document.getElementById('sendBtnCount').textContent = recipients.length;
+  }
+
+  async function loadFromRegistrations() {
+    try {
+      const res = await fetch(`${API_BASE}/api/registrations`, { headers: { 'x-admin-key': adminKey } });
+      if (!res.ok) { alert('Could not load registrations (status ' + res.status + ').'); return; }
+      let records = await res.json();
+      if (regStatusFilter !== 'all') records = records.filter(r => r.status === regStatusFilter);
+
+      const seen = new Set();
+      recipients = [];
+      records.forEach(r => {
+        const lead = (r.members || [])[0];
+        const email = lead && lead.email ? lead.email.trim() : '';
+        if (!email || seen.has(email.toLowerCase())) return;
+        seen.add(email.toLowerCase());
+        recipients.push({ email, firstName: lead.firstName || '' });
+      });
+      updateRecipientCount();
+    } catch (e) {
+      alert('Could not reach the server.');
+    }
+  }
+
+  function loadFromPaste() {
+    const text = document.getElementById('pasteBox').value;
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const seen = new Set();
+    recipients = [];
+    lines.forEach(line => {
+      const parts = line.split(',').map(p => p.trim());
+      const email = parts[0];
+      const firstName = parts[1] || '';
+      if (!email || !email.includes('@') || seen.has(email.toLowerCase())) return;
+      seen.add(email.toLowerCase());
+      recipients.push({ email, firstName });
+    });
+    updateRecipientCount();
+  }
+
+  function handleUploadFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('uploadStatus');
+    const boxEl = document.getElementById('uploadBox');
+    statusEl.textContent = 'Reading...';
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        if (!json.length) { statusEl.textContent = 'File has no rows.'; return; }
+
+        const headers = Object.keys(json[0]);
+        const emailCol = headers.find(h => h.toLowerCase().includes('email'));
+        const nameCol = headers.find(h => h.toLowerCase().includes('first name')) || headers.find(h => h.toLowerCase().includes('name'));
+
+        if (!emailCol) { statusEl.textContent = 'Could not find a column with "email" in its header.'; return; }
+
+        const seen = new Set();
+        recipients = [];
+        json.forEach(row => {
+          const email = String(row[emailCol] || '').trim();
+          if (!email || !email.includes('@') || seen.has(email.toLowerCase())) return;
+          seen.add(email.toLowerCase());
+          recipients.push({ email, firstName: nameCol ? String(row[nameCol] || '').trim() : '' });
+        });
+
+        statusEl.textContent = `Loaded ${recipients.length} recipient(s) from "${emailCol}" column.`;
+        boxEl.classList.add('loaded');
+        updateRecipientCount();
+      } catch (err) {
+        statusEl.textContent = 'Could not read this file. Make sure it is a valid Excel or CSV file.';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function startBulkSend() {
+    const statusEl = document.getElementById('composeStatus');
+    statusEl.textContent = '';
+    statusEl.className = '';
+
+    if (!recipients.length) {
+      statusEl.textContent = 'Load some recipients first (Step 1).';
+      statusEl.className = 'error';
+      return;
+    }
+    const subject = document.getElementById('emailSubject').value.trim();
+    const body = document.getElementById('emailBody').value.trim();
+    if (!subject || !body) {
+      statusEl.textContent = 'Please fill in both the subject and message.';
+      statusEl.className = 'error';
+      return;
+    }
+
+    if (!confirm(`Send this email to ${recipients.length} recipient(s)? This cannot be undone once started.`)) return;
+
+    document.getElementById('sendBtn').disabled = true;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/bulk-email/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ recipients, subject, body })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        statusEl.textContent = data.error || 'Could not start the bulk email job.';
+        statusEl.className = 'error';
+        document.getElementById('sendBtn').disabled = false;
+        return;
+      }
+      document.getElementById('progressCard').style.display = '';
+      document.getElementById('progressCard').scrollIntoView({ behavior: 'smooth' });
+      pollJobStatus();
+    } catch (e) {
+      statusEl.textContent = 'Could not reach the server.';
+      statusEl.className = 'error';
+      document.getElementById('sendBtn').disabled = false;
+    }
+  }
+
+  async function cancelBulkSend() {
+    if (!confirm('Cancel the remaining sends? Emails already sent cannot be recalled.')) return;
+    try {
+      await fetch(`${API_BASE}/api/bulk-email/cancel`, {
+        method: 'POST',
+        headers: { 'x-admin-key': adminKey }
+      });
+    } catch (e) {}
+  }
+
+  function renderJobStatus(job) {
+    if (job.noJob) return;
+    document.getElementById('progressCard').style.display = '';
+    const pct = job.total ? Math.round(((job.sent + job.failed) / job.total) * 100) : 0;
+    document.getElementById('progressBarFill').style.width = pct + '%';
+    document.getElementById('progSent').textContent = job.sent;
+    document.getElementById('progFailed').textContent = job.failed;
+    document.getElementById('progRemaining').textContent = Math.max(0, job.total - job.sent - job.failed);
+    document.getElementById('progTotal').textContent = job.total;
+
+    const msgEl = document.getElementById('progressStatusMsg');
+    const cancelBtn = document.getElementById('cancelJobBtn');
+    if (job.inProgress) {
+      msgEl.textContent = 'Sending in progress...';
+      msgEl.className = '';
+      cancelBtn.style.display = '';
+    } else {
+      msgEl.textContent = `Finished — ${job.sent} sent, ${job.failed} failed, out of ${job.total}.`;
+      msgEl.className = 'success';
+      cancelBtn.style.display = 'none';
+      document.getElementById('sendBtn').disabled = false;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+  }
+
+  async function pollJobStatus() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/bulk-email/status`, { headers: { 'x-admin-key': adminKey } });
+        if (!res.ok) return;
+        const job = await res.json();
+        renderJobStatus(job);
+      } catch (e) {}
+    }, 2000);
+  }
+
+  async function checkExistingJob() {
+    try {
+      const res = await fetch(`${API_BASE}/api/bulk-email/status`, { headers: { 'x-admin-key': adminKey } });
+      if (!res.ok) return;
+      const job = await res.json();
+      if (!job.noJob) {
+        renderJobStatus(job);
+        if (job.inProgress) pollJobStatus();
+      }
+    } catch (e) {}
+  }
+</script>
+
+</body>
+</html>
