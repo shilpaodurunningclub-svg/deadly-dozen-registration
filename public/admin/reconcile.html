@@ -225,6 +225,11 @@
         <button class="filter-btn" data-f="review" onclick="setStatusFilter('review')">Needs Review</button>
       </div>
       <div class="filter-row">
+        <input type="text" id="reportSearch" placeholder="Search — use commas to combine, e.g.  rohit, solo   or   pairs, not paid" style="max-width:460px;" oninput="renderReportTable()">
+        <button class="mini-btn" onclick="document.getElementById('reportSearch').value=''; renderReportTable();">Clear</button>
+        <span id="reportCount" class="info-line" style="margin:0;"></span>
+      </div>
+      <div class="filter-row">
         <select class="filter-select" id="teamFilterSelect" onchange="renderReportTable()">
           <option value="all">All Teams</option>
         </select>
@@ -918,7 +923,19 @@
   function getFilteredResults() {
     const teamVal = document.getElementById('teamFilterSelect').value;
     const catVal = document.getElementById('categoryFilterSelect').value;
+    // Search box: comma-separated terms, ALL must match (in any column) — e.g. "rohit, solo", "pairs, not paid"
+    const searchEl = document.getElementById('reportSearch');
+    const terms = (searchEl ? searchEl.value : '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
     return results.filter(r => {
+      if (terms.length) {
+        const hay = reportRowToArray(r).map(v => String(v == null ? '' : v).toLowerCase()).join(' | ');
+        for (const t of terms) {
+          // exact-ish status words so "paid" does not also match "not paid"
+          if (t === 'paid') { if (r.paymentStatus !== 'Paid') return false; continue; }
+          if (t === 'not paid' || t === 'notpaid' || t === 'unpaid') { if (r.paymentStatus !== 'Not Paid') return false; continue; }
+          if (!hay.includes(t)) return false;
+        }
+      }
       if (statusFilter === 'paid' && r.paymentStatus !== 'Paid') return false;
       if (statusFilter === 'notpaid' && r.paymentStatus !== 'Not Paid') return false;
       if (statusFilter === 'direct' && r.paidThroughType !== 'Direct') return false;
@@ -940,6 +957,8 @@
 
   function renderReportTable() {
     const rows = getFilteredResults();
+    const countEl = document.getElementById('reportCount');
+    if (countEl) countEl.textContent = `Showing ${rows.length} of ${results.length}`;
     const table = document.getElementById('reportTable');
     let html = '<thead><tr>' + REPORT_HEADERS.map(h => `<th>${h}</th>`).join('') + '<th>Action</th></tr></thead><tbody>';
     rows.forEach(r => {
