@@ -45,7 +45,7 @@ app.post('/api/razorpay-webhook', express.raw({ type: 'application/json' }), asy
         const { rows } = await pool.query('SELECT * FROM registrations WHERE razorpay_order_id = $1', [payment.order_id]);
         if (rows.length && rows[0].status !== 'paid') {
           const { rows: updated } = await pool.query(
-            `UPDATE registrations SET status = 'paid', razorpay_payment_id = $1, paid_at = now() WHERE id = $2 RETURNING *`,
+            `UPDATE registrations SET status = 'paid', razorpay_payment_id = $1, paid_at = now(), paid_source = 'webhook' WHERE id = $2 RETURNING *`,
             [payment.id, rows[0].id]
           );
           console.log(`Webhook: marked ${rows[0].id} as paid (payment ${payment.id}).`);
@@ -155,8 +155,40 @@ async function ensureSchema() {
   // for the case where the registrations table already existed before this field was introduced.
   await pool.query(`
     ALTER TABLE registrations ADD COLUMN IF NOT EXISTS registration_code TEXT;
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS paid_source TEXT;
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS paid_note TEXT;
+    ALTER TABLE registrations ADD COLUMN IF NOT EXISTS paid_marked_by TEXT;
     ALTER TABLE gyms ADD COLUMN IF NOT EXISTS deadly_dozen_association_other TEXT;
     ALTER TABLE gyms ADD COLUMN IF NOT EXISTS deadly_dozen_track_host JSONB NOT NULL DEFAULT '[]';
+  `);
+
+  // Reconciliation memory: exclusion rules, manual overrides and saved run snapshots.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reconcile_rules (
+      id INT PRIMARY KEY DEFAULT 1,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS reconcile_overrides (
+      key TEXT PRIMARY KEY,
+      booking_ref TEXT,
+      contact TEXT,
+      competition TEXT,
+      name TEXT,
+      status TEXT NOT NULL DEFAULT 'paid',
+      source TEXT NOT NULL DEFAULT 'manual',
+      payment_id TEXT,
+      note TEXT,
+      marked_by TEXT,
+      marked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS reconcile_runs (
+      id SERIAL PRIMARY KEY,
+      run_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      label TEXT,
+      summary JSONB,
+      rows JSONB NOT NULL
+    );
   `);
 
   // One-time migration of the single test registration that existed in the old
@@ -201,7 +233,10 @@ function mapRegistrationRow(row) {
     razorpaySignature: row.razorpay_signature,
     paymentMethod: row.payment_method,
     paidAt: row.paid_at,
-    registrationCode: row.registration_code
+    registrationCode: row.registration_code,
+    paidSource: row.paid_source,
+    paidNote: row.paid_note,
+    paidMarkedBy: row.paid_marked_by
   };
 }
 
@@ -538,7 +573,7 @@ app.post('/api/create-order', async (req, res) => {
       }
       if (reg.status !== 'paid') {
         const { rows: updated } = await pool.query(
-          `UPDATE registrations SET status = 'paid', payment_method = 'coupon', paid_at = now() WHERE id = $1 RETURNING *`,
+          `UPDATE registrations SET status = 'paid', payment_method = 'coupon', paid_at = now(), paid_source = 'coupon' WHERE id = $1 RETURNING *`,
           [registrationId]);
         await sendConfirmationEmail(mapRegistrationRow(updated[0]));
       }
@@ -606,7 +641,8 @@ app.post('/api/verify-payment', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE registrations
-       SET status = $1, razorpay_payment_id = $2, razorpay_signature = $3, paid_at = $4
+       SET status = $1, razorpay_payment_id = $2, razorpay_signature = $3, paid_at = $4,
+           paid_source = CASE WHEN $1 = 'paid' THEN 'razorpay' ELSE paid_source END
        WHERE id = $5
        RETURNING *`,
       [newStatus, razorpay_payment_id, razorpay_signature, isValid ? new Date().toISOString() : null, registrationId]
@@ -791,10 +827,26 @@ app.post('/api/registrations/:id/mark-paid', requireAdmin, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Not found.' });
     if (rows[0].status === 'paid') return res.json({ ok: true, alreadyPaid: true, record: mapRegistrationRow(rows[0]) });
 
-    const paymentId = (req.body && req.body.razorpayPaymentId) || rows[0].razorpay_payment_id || null;
+    // source: 'manual' = admin checked Razorpay and found the payment (payment ID required)
+    //         'offline' = cash / sponsor / BU / waived (a note explaining why is required)
+    const body = req.body || {};
+    const source = body.source === 'offline' ? 'offline' : 'manual';
+    const paymentId = String(body.razorpayPaymentId || '').trim() || rows[0].razorpay_payment_id || null;
+    const note = String(body.note || '').trim() || null;
+    const markedBy = String(body.markedBy || 'admin').trim().slice(0, 60);
+    if (source === 'manual' && !paymentId) {
+      return res.status(400).json({ error: 'A Razorpay payment ID (pay_...) is required for a manual mark. Use source "offline" with a note for cash/sponsor/waived entries.' });
+    }
+    if (source === 'offline' && !note) {
+      return res.status(400).json({ error: 'A note explaining why is required for an offline / waived entry.' });
+    }
+
     const { rows: updated } = await pool.query(
-      `UPDATE registrations SET status = 'paid', razorpay_payment_id = COALESCE($1, razorpay_payment_id), paid_at = now() WHERE id = $2 RETURNING *`,
-      [paymentId, req.params.id]
+      `UPDATE registrations
+         SET status = 'paid', razorpay_payment_id = COALESCE($1, razorpay_payment_id), paid_at = now(),
+             paid_source = $2, paid_note = $3, paid_marked_by = $4
+       WHERE id = $5 RETURNING *`,
+      [paymentId, source, note, markedBy, req.params.id]
     );
     const record = mapRegistrationRow(updated[0]);
     await sendConfirmationEmail(record);
@@ -1153,6 +1205,318 @@ app.delete('/api/challenge-designs/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('delete challenge design failed:', err);
     res.status(500).json({ error: 'Server error deleting challenge design.' });
+  }
+});
+
+// ---------- Send a bulk email to a set of registrations (admin only) ----------
+// Body: { ids: [...], subject: "...", body: "..." }
+// {{firstName}} in the body is replaced with each recipient's first name (or "there" if unknown).
+// Emails are sent one at a time (not a mass CC) so each recipient only sees their own address.
+app.post('/api/registrations/bulk-email', requireAdmin, async (req, res) => {
+  if (!mailTransporter) {
+    return res.status(500).json({ error: 'Email is not configured on the server (EMAIL_USER / EMAIL_PASS missing).' });
+  }
+
+  const { ids, subject, body } = req.body || {};
+  if (!Array.isArray(ids) || !ids.length) {
+    return res.status(400).json({ error: 'ids must be a non-empty array.' });
+  }
+  if (!subject || !body) {
+    return res.status(400).json({ error: 'subject and body are required.' });
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT * FROM registrations WHERE id = ANY($1)', [ids]);
+    const records = rows.map(mapRegistrationRow);
+
+    let sentCount = 0;
+    let skippedCount = 0;
+
+    for (const record of records) {
+      const lead = (record.members || [])[0];
+      const toEmail = lead && lead.email;
+      if (!toEmail) { skippedCount++; continue; }
+
+      const firstName = (lead.firstName || 'there').trim();
+      const personalizedBody = body.replace(/\{\{\s*firstName\s*\}\}/gi, firstName);
+      const htmlBody = personalizedBody
+        .split('\n\n')
+        .map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+        .join('');
+
+      try {
+        await mailTransporter.sendMail({
+          from: `"Deadly Dozen India" <${EMAIL_FROM}>`,
+          to: toEmail,
+          subject,
+          text: personalizedBody,
+          html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#1c1c1c; max-width:560px; margin:0 auto;">${htmlBody}</div>`
+        });
+        sentCount++;
+      } catch (err) {
+        console.error(`Bulk email failed for ${record.id} (${toEmail}):`, err);
+        skippedCount++;
+      }
+    }
+
+    res.json({ ok: true, totalCount: ids.length, sentCount, skippedCount });
+  } catch (err) {
+    console.error('bulk email failed:', err);
+    res.status(500).json({ error: 'Server error sending bulk email.' });
+  }
+});
+
+// ---------- Large-scale bulk email (arbitrary recipient list, e.g. 1000+) ----------
+// This runs as a background job rather than inside the HTTP request, because a single
+// request sending 1000+ emails would time out, and blasting them all at once risks
+// tripping Gmail's rate limits / daily sending cap (500/day on a plain Gmail account,
+// 2000/day on Google Workspace). Emails are paced out with a short delay between sends.
+// Only one job runs at a time; starting a new one while one is in progress is rejected.
+let bulkEmailJob = null; // { total, sent, failed, inProgress, startedAt, finishedAt, cancelRequested }
+
+const BULK_EMAIL_DELAY_MS = 400; // pacing between sends — keeps well under typical SMTP rate limits
+
+app.post('/api/bulk-email/send', requireAdmin, async (req, res) => {
+  if (!mailTransporter) {
+    return res.status(500).json({ error: 'Email is not configured on the server (EMAIL_USER / EMAIL_PASS missing).' });
+  }
+  if (bulkEmailJob && bulkEmailJob.inProgress) {
+    return res.status(409).json({ error: 'A bulk email job is already in progress. Wait for it to finish before starting another.' });
+  }
+
+  const { recipients, subject, body } = req.body || {};
+  if (!Array.isArray(recipients) || !recipients.length) {
+    return res.status(400).json({ error: 'recipients must be a non-empty array of { email, firstName }.' });
+  }
+  if (!subject || !body) {
+    return res.status(400).json({ error: 'subject and body are required.' });
+  }
+
+  // De-duplicate by email (case-insensitive) and drop anything without a usable address.
+  const seen = new Set();
+  const cleanRecipients = [];
+  recipients.forEach(r => {
+    const email = String((r && r.email) || '').trim();
+    if (!email || !email.includes('@')) return;
+    const key = email.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    cleanRecipients.push({ email, firstName: (r && r.firstName ? String(r.firstName) : '').trim() });
+  });
+
+  if (!cleanRecipients.length) {
+    return res.status(400).json({ error: 'No valid email addresses found in the recipient list.' });
+  }
+
+  bulkEmailJob = {
+    total: cleanRecipients.length,
+    sent: 0,
+    failed: 0,
+    inProgress: true,
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    cancelRequested: false
+  };
+
+  res.json({ ok: true, totalCount: cleanRecipients.length, message: 'Bulk email job started.' });
+
+  // Fire-and-forget: continue sending after the response has already gone back to the client.
+  (async () => {
+    for (const r of cleanRecipients) {
+      if (bulkEmailJob.cancelRequested) break;
+
+      const firstName = r.firstName || 'there';
+      const personalizedBody = body.replace(/\{\{\s*firstName\s*\}\}/gi, firstName);
+      const htmlBody = personalizedBody.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+
+      try {
+        await mailTransporter.sendMail({
+          from: `"Deadly Dozen India" <${EMAIL_FROM}>`,
+          to: r.email,
+          subject,
+          text: personalizedBody,
+          html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#1c1c1c; max-width:560px; margin:0 auto;">${htmlBody}</div>`
+        });
+        bulkEmailJob.sent++;
+      } catch (err) {
+        console.error(`Bulk email job: failed to send to ${r.email}:`, err.message);
+        bulkEmailJob.failed++;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, BULK_EMAIL_DELAY_MS));
+    }
+
+    bulkEmailJob.inProgress = false;
+    bulkEmailJob.finishedAt = new Date().toISOString();
+    console.log(`Bulk email job finished: ${bulkEmailJob.sent} sent, ${bulkEmailJob.failed} failed, out of ${bulkEmailJob.total}.`);
+  })();
+});
+
+app.get('/api/bulk-email/status', requireAdmin, (req, res) => {
+  if (!bulkEmailJob) return res.json({ noJob: true });
+  res.json(bulkEmailJob);
+});
+
+app.post('/api/bulk-email/cancel', requireAdmin, (req, res) => {
+  if (!bulkEmailJob || !bulkEmailJob.inProgress) {
+    return res.status(400).json({ error: 'No job currently in progress.' });
+  }
+  bulkEmailJob.cancelRequested = true;
+  res.json({ ok: true, message: 'Cancellation requested — the job will stop after the current email finishes sending.' });
+});
+
+// ---------- Reconciliation memory (admin only) ----------
+// Rules (which Razorpay amounts/payments to leave out), manual overrides, and saved run snapshots,
+// so the reconcile page can tag "Newly paid" / "Manual" and apply the same exclusions every time.
+const DEFAULT_RECONCILE_RULES = {
+  kauveryAmounts: [450, 531, 767],
+  testAmounts: [1, 10, 100],
+  excludedPayments: {} // { "pay_xxx": { tag: "BU", note: "..." } }
+};
+
+app.get('/api/reconcile/rules', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT data FROM reconcile_rules WHERE id = 1');
+    res.json(rows.length ? Object.assign({}, DEFAULT_RECONCILE_RULES, rows[0].data) : DEFAULT_RECONCILE_RULES);
+  } catch (err) {
+    console.error('load reconcile rules failed:', err);
+    res.status(500).json({ error: 'Server error loading rules.' });
+  }
+});
+
+app.put('/api/reconcile/rules', requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const nums = a => (Array.isArray(a) ? a : []).map(Number).filter(n => Number.isFinite(n) && n > 0);
+    const excluded = {};
+    Object.entries(b.excludedPayments || {}).forEach(([id, v]) => {
+      if (/^pay_[A-Za-z0-9]+$/.test(id)) {
+        excluded[id] = { tag: String((v && v.tag) || 'BU').slice(0, 30), note: String((v && v.note) || '').slice(0, 200) };
+      }
+    });
+    const data = { kauveryAmounts: nums(b.kauveryAmounts), testAmounts: nums(b.testAmounts), excludedPayments: excluded };
+    await pool.query(
+      `INSERT INTO reconcile_rules (id, data, updated_at) VALUES (1, $1, now())
+       ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = now()`,
+      [JSON.stringify(data)]
+    );
+    res.json({ ok: true, rules: data });
+  } catch (err) {
+    console.error('save reconcile rules failed:', err);
+    res.status(500).json({ error: 'Server error saving rules.' });
+  }
+});
+
+app.get('/api/reconcile/overrides', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM reconcile_overrides ORDER BY marked_at DESC');
+    res.json(rows);
+  } catch (err) {
+    console.error('load overrides failed:', err);
+    res.status(500).json({ error: 'Server error loading overrides.' });
+  }
+});
+
+// Upsert a manual override. status 'paid' needs a payment ID (source manual) or a note (source offline).
+app.put('/api/reconcile/overrides', requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const bookingRef = String(b.bookingRef || '').trim();
+    const contact = String(b.contact || '').replace(/\D/g, '').slice(-10);
+    const competition = String(b.competition || '').trim().toLowerCase();
+    const key = bookingRef || (contact && competition ? `${contact}|${competition}` : '');
+    if (!key) return res.status(400).json({ error: 'bookingRef (or contact + competition) is required.' });
+    const source = b.source === 'offline' ? 'offline' : 'manual';
+    const paymentId = String(b.paymentId || '').trim() || null;
+    const note = String(b.note || '').trim() || null;
+    if (source === 'manual' && !paymentId) return res.status(400).json({ error: 'A Razorpay payment ID is required for a manual override.' });
+    if (source === 'offline' && !note) return res.status(400).json({ error: 'A note is required for an offline / waived entry.' });
+    const { rows } = await pool.query(
+      `INSERT INTO reconcile_overrides (key, booking_ref, contact, competition, name, status, source, payment_id, note, marked_by, marked_at)
+       VALUES ($1,$2,$3,$4,$5,'paid',$6,$7,$8,$9, now())
+       ON CONFLICT (key) DO UPDATE SET booking_ref=$2, contact=$3, competition=$4, name=$5, source=$6,
+         payment_id=$7, note=$8, marked_by=$9, marked_at=now()
+       RETURNING *`,
+      [key, bookingRef || null, contact || null, competition || null, String(b.name || '').slice(0, 120) || null,
+       source, paymentId, note, String(b.markedBy || 'admin').slice(0, 60)]
+    );
+    res.json({ ok: true, override: rows[0] });
+  } catch (err) {
+    console.error('save override failed:', err);
+    res.status(500).json({ error: 'Server error saving override.' });
+  }
+});
+
+app.delete('/api/reconcile/overrides/:key', requireAdmin, async (req, res) => {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM reconcile_overrides WHERE key = $1', [req.params.key]);
+    res.json({ ok: true, deleted: rowCount });
+  } catch (err) {
+    console.error('delete override failed:', err);
+    res.status(500).json({ error: 'Server error deleting override.' });
+  }
+});
+
+// Registrations in this system that an admin marked paid by hand (like a manual Mark Paid on the report page).
+app.get('/api/reconcile/manual-paid', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM registrations WHERE status = 'paid' AND paid_source IN ('manual','offline') ORDER BY paid_at DESC`
+    );
+    res.json(rows.map(r => {
+      const rec = mapRegistrationRow(r);
+      return {
+        id: rec.id,
+        registrationCode: rec.registrationCode,
+        category: rec.category,
+        source: rec.paidSource,
+        paymentId: rec.razorpayPaymentId,
+        note: rec.paidNote,
+        markedBy: rec.paidMarkedBy,
+        paidAt: rec.paidAt,
+        contacts: (rec.members || []).map(m => String(m.contact || m.phone || '').replace(/\D/g, '').slice(-10)).filter(Boolean),
+        name: ((rec.members || [])[0] ? `${rec.members[0].firstName || ''} ${rec.members[0].lastName || ''}`.trim() : '')
+      };
+    }));
+  } catch (err) {
+    console.error('manual-paid list failed:', err);
+    res.status(500).json({ error: 'Server error loading manual payments.' });
+  }
+});
+
+app.get('/api/reconcile/runs', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, run_at, label, summary FROM reconcile_runs ORDER BY id DESC LIMIT 100');
+    res.json(rows);
+  } catch (err) {
+    console.error('list runs failed:', err);
+    res.status(500).json({ error: 'Server error listing runs.' });
+  }
+});
+
+app.get('/api/reconcile/runs/latest', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM reconcile_runs ORDER BY id DESC LIMIT 1');
+    res.json(rows.length ? rows[0] : { none: true });
+  } catch (err) {
+    console.error('latest run failed:', err);
+    res.status(500).json({ error: 'Server error loading the last run.' });
+  }
+});
+
+// Body: { label, summary, rows: [{ key, name, competition, status, paymentId, tag, ... }] }
+app.post('/api/reconcile/runs', requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!Array.isArray(b.rows) || !b.rows.length) return res.status(400).json({ error: 'rows must be a non-empty array.' });
+    const { rows } = await pool.query(
+      'INSERT INTO reconcile_runs (label, summary, rows) VALUES ($1, $2, $3) RETURNING id, run_at',
+      [String(b.label || '').slice(0, 120) || null, JSON.stringify(b.summary || {}), JSON.stringify(b.rows)]
+    );
+    res.json({ ok: true, id: rows[0].id, runAt: rows[0].run_at });
+  } catch (err) {
+    console.error('save run failed:', err);
+    res.status(500).json({ error: 'Server error saving the run.' });
   }
 });
 
