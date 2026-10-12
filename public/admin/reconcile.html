@@ -403,12 +403,12 @@
     if (regData && rzpData) setupCleanStep();
   }
 
-  function guessCol(headers, priorities) {
+  function guessCol(headers, priorities, optional) {
     for (const p of priorities) {
       const found = headers.find(h => h.toLowerCase().includes(p));
       if (found) return found;
     }
-    return headers[0] || '';
+    return optional ? '' : (headers[0] || '');
   }
 
   // ---------- Phone cleaning ----------
@@ -501,7 +501,8 @@
     { key: 'regAmount', label: 'Registration Amount', priorities: ['registration amount', 'amount', 'total'] },
     { key: 'gender', label: 'Gender', priorities: ['gender'] },
     { key: 'city', label: 'City', priorities: ['city'] },
-    { key: 'category', label: 'Category / Competition (for Solo/Pairs/Relay filter)', priorities: ['competition', 'category', 'ticket type', 'entry type'] }
+    { key: 'category', label: 'Category / Competition (for Solo/Pairs/Relay filter)', priorities: ['competition', 'category', 'ticket type', 'entry type'] },
+    { key: 'categoryDetail', label: 'Category (shown as its own column, e.g. "Solo + Race Photo")', priorities: ['category', 'ticket type', 'entry type', 'ticket'], optional: true }
   ];
 
   const RZP_FIELDS = [
@@ -525,7 +526,7 @@
       </div>
     `).join('');
     REG_FIELDS.forEach(f => {
-      const guess = guessCol(regData.headers, f.priorities);
+      const guess = guessCol(regData.headers, f.priorities, f.optional);
       if (guess) document.getElementById('regMap_' + f.key).value = guess;
     });
 
@@ -730,6 +731,7 @@
         gender: regMap.gender ? row[regMap.gender] : '',
         city: regMap.city ? row[regMap.city] : '',
         category: regMap.category ? row[regMap.category] : '',
+        categoryDetail: regMap.categoryDetail ? row[regMap.categoryDetail] : '',
         categoryKey: r.categoryKey,
         paymentStatus,
         paidThroughType: paidThrough, // raw 'Direct' / 'Team' / '' — used for filtering
@@ -949,10 +951,14 @@
     });
   }
 
-  const REPORT_HEADERS = ['First Name', 'Last Name', 'Booking Reference', 'Team', 'Competition', 'Email', 'Contact Number', 'Registration Status', 'Registration Date', 'Registration Amount', 'Gender', 'City', 'Payment Status', 'Paid Through', 'Matched Paying Contact', 'Razorpay Payment ID', 'Razorpay Amount', 'Payment Date', 'Tag', 'Newly Paid On', 'Paid Source', 'Note'];
+  const REPORT_HEADERS = ['First Name', 'Last Name', 'Booking Reference', 'Team', 'Competition', 'Category', 'Email', 'Contact Number', 'Registration Status', 'Registration Date', 'Registration Amount', 'Gender', 'City', 'Payment Status', 'Paid Through', 'Matched Paying Contact', 'Razorpay Payment ID', 'Razorpay Amount', 'Payment Date', 'Tag', 'Newly Paid On', 'Paid Source', 'Note'];
+
+  const COL_PAY_STATUS = REPORT_HEADERS.indexOf('Payment Status');
+  const COL_PAID_THROUGH = REPORT_HEADERS.indexOf('Paid Through');
+  const COL_TAG = REPORT_HEADERS.indexOf('Tag');
 
   function reportRowToArray(r) {
-    return [r.firstName, r.lastName, r.bookingRef, r.team, r.category, r.email, r.contact, r.regStatus, r.regDate, r.regAmount, r.gender, r.city, r.paymentStatus, r.paidThrough, r.matchedContact, r.paymentId, r.paymentAmount, r.paymentDate, r.tag, r.newlyPaidOn, r.paidSource, r.note];
+    return [r.firstName, r.lastName, r.bookingRef, r.team, r.category, r.categoryDetail, r.email, r.contact, r.regStatus, r.regDate, r.regAmount, r.gender, r.city, r.paymentStatus, r.paidThrough, r.matchedContact, r.paymentId, r.paymentAmount, r.paymentDate, r.tag, r.newlyPaidOn, r.paidSource, r.note];
   }
 
   function renderReportTable() {
@@ -964,12 +970,12 @@
     rows.forEach(r => {
       const vals = reportRowToArray(r);
       html += '<tr>' + vals.map((v, i) => {
-        if (i === 12) return `<td><span class="badge ${r.paymentStatus === 'Paid' ? 'paid' : 'notpaid'}">${esc(v)}</span></td>`;
-        if (i === 13 && v) {
+        if (i === COL_PAY_STATUS) return `<td><span class="badge ${r.paymentStatus === 'Paid' ? 'paid' : 'notpaid'}">${esc(v)}</span></td>`;
+        if (i === COL_PAID_THROUGH && v) {
           const cls = r.paidThroughType === 'Direct' ? 'direct' : (r.paidThroughType === 'Manual' ? 'manual' : 'team');
           return `<td><span class="badge ${cls}">${esc(v)}</span></td>`;
         }
-        if (i === 18 && v) {
+        if (i === COL_TAG && v) {
           const cls = v === 'Newly paid' || v === 'New registration' ? 'new' : (v === 'Needs review' ? 'review' : 'still');
           return `<td><span class="badge ${cls}">${esc(v)}</span></td>`;
         }
